@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 232 38% 5%; /* #07080F */
+    --foreground: 214 32% 91%; /* #E2E8F0 */
+    --card: 231 39% 9%; /* #0E1020 */
+    --card-foreground: 214 32% 91%;
+    --popover: 231 39% 9%;
+    --popover-foreground: 214 32% 91%;
+    --primary: 229 91% 64%; /* #4F6EF7 */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 232 37% 12%; /* #131629 */
+    --secondary-foreground: 210 40% 98%;
+    --muted: 232 38% 17%; /* #1A1F3A */
+    --muted-foreground: 215 16% 47%; /* #64748B */
+    --accent: 229 91% 64%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 349 100% 65%; /* #FF4D6D */
+    --destructive-foreground: 210 40% 98%;
+    --border: 231 36% 18%; /* #1E2340 */
+    --input: 231 36% 18%;
+    --ring: 229 91% 64%;
+    --radius: 0.75rem;
+
+    /* Custom Blu_bot tokens */
+    --bg-base: #07080F;
+    --bg-surface: #0E1020;
+    --bg-card: #131629;
+    --bg-faint: #1A1F3A;
+    --border-custom: #1E2340;
+    --border-hover: #2E3560;
+    --accent-custom: #4F6EF7;
+    --green: #22D3A0;
+    --amber: #F5A623;
+    --red: #FF4D6D;
+    --purple: #A78BFA;
+    --text-muted-custom: #64748B;
+    --text-faint-custom: #3A4060;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  h1, h2, h3, h4, h5, h6, .font-headline {
+    font-family: 'Syne', sans-serif;
+    @apply font-bold tracking-tight;
+  }
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card border border-border rounded-[12px] relative overflow-hidden;
+    background: var(--bg-surface);
+  }
+  
+  .glass-card::before {
+    content: '';
+    @apply absolute top-0 left-0 right-0 h-[1px];
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium font-mono uppercase tracking-wider;
+  }
+
+  .sidebar-item-active {
+    @apply bg-primary/10 border-l-2 border-primary text-white;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #131629, #1A1F3A, #131629);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
