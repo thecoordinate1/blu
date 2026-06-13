@@ -1,0 +1,356 @@
+# Autonomous WhatsApp Business Agent — SaaS
+### System Architecture v1.0
+**Bluetick Technology Ltd**
+
+> Full-stack architecture for a multi-tenant AI agent that reads, reasons, acts, and communicates like a human — powered by Gemini Flash, Supabase, and WhatsApp Business API.
+
+---
+
+## 01 — Message Flow: End-to-End Request Lifecycle
+
+```
+👤 Customer          📥 WhatsApp Gateway       🧠 Reasoning Engine      ⚡ Action Dispatch      📤 Response
+sends WA msg   →    webhook / waapi       →    Gemini Flash 2.0    →    CRUD / escalate    →    human-like reply
+```
+
+---
+
+## 02 — Core Modules: System Components
+
+### 🤖 Agent Core
+Orchestrates all decisions. Receives parsed WhatsApp messages, runs reasoning through Gemini Flash, determines intent, selects action, and dispatches accordingly.
+
+**Tags:** `Node.js` · `State Machine` · `Event Bus` · `Queue Worker`
+
+---
+
+### 💬 WhatsApp Gateway
+Bidirectional message bridge via WhatsApp Business API. Handles inbound webhook parsing, media downloads, delivery receipts, and outbound message composition with template support.
+
+**Tags:** `WABA` · `Webhook` · `Media Handler` · `Template Engine`
+
+---
+
+### 🧠 Reasoning Engine
+Gemini Flash 2.0 integration with structured prompting, few-shot examples, and chain-of-thought. Outputs intent classification, entity extraction, sentiment, and response text.
+
+**Tags:** `Gemini Flash 2.0` · `Few-shot` · `CoT` · `JSON Mode`
+
+---
+
+### 🗄️ Data Layer
+Full Supabase CRUD via Row Level Security policies. Stores conversations, business configs, contacts, escalation logs, and agent actions. Real-time subscriptions for dashboard.
+
+**Tags:** `Supabase` · `RLS` · `Realtime` · `Postgres`
+
+---
+
+### 🚨 Escalation Manager
+Rule-based and AI-triggered handoff system. Detects frustration signals, complex queries, and keywords. Routes to human agent via primary number with full conversation context.
+
+**Tags:** `Rule Engine` · `Sentiment Gate` · `Handoff Protocol`
+
+---
+
+### 📊 SaaS Control Plane
+Multi-tenant management: business registration, subscription billing, number provisioning, usage metering, and API key issuance. Isolates tenant data at the DB level.
+
+**Tags:** `Multi-tenant` · `Billing` · `Auth` · `Provisioning`
+
+---
+
+## 03 — Infrastructure: Layered System Architecture
+
+```
+┌─────────────────────────────────────────── CLIENT LAYER ────────────────────────────────────────────┐
+│  Business Owner Dashboard        Mobile (WhatsApp Primary)        Customer Conversations             │
+│  Next.js 14 · Vercel             Owner's personal WA number       Ops WA number · WABA              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                              ↕
+┌─────────────────────────────────────────── API GATEWAY ─────────────────────────────────────────────┐
+│  REST API                        Webhook Receiver                  Auth Middleware                   │
+│  Hono · Railway                  WhatsApp events endpoint          Supabase JWT · API keys           │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                              ↕
+┌─────────────────────────────── AGENT PROCESSING LAYER ──────────────────────────────────────────────┐
+│  Message Parser        Gemini Flash 2.0          Action Router            BullMQ Queue              │
+│  NLP pre-processing    Intent · Entities · Reply  CRUD / Escalate / Respond  Redis · async jobs     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                              ↕
+┌─────────────────────────────────────────── DATA LAYER ──────────────────────────────────────────────┐
+│  Supabase Postgres               Supabase Realtime                 Supabase Storage                  │
+│  Multi-tenant · RLS policies     Live dashboard updates            Media · documents                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                              ↕
+┌─────────────────────────────────────── EXTERNAL SERVICES ───────────────────────────────────────────┐
+│  Meta WABA / waapi       Google AI Studio        Stripe                   Sentry                    │
+│  WhatsApp send · receive  Gemini Flash API        Billing · subscriptions  Error monitoring          │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 04 — Agent Behaviour: State Machine
+
+| State | Indicator | Description | Transitions |
+|---|---|---|---|
+| **IDLE** | ⚫ | Waiting for inbound message from ops number | `MESSAGE_RECEIVED → PARSING` |
+| **PARSING** | 🔵 | Extracting entities, intent, context from message | `PARSED → REASONING` · `PARSE_FAIL → CLARIFY` |
+| **REASONING** | 🟣 | Gemini Flash analyzes intent and selects action | `INTENT:QUERY → DB_READ` · `INTENT:MUTATE → DB_WRITE` · `INTENT:COMPLEX → ESCALATE` |
+| **DB_READ** | 🟢 | Reads from Supabase, formats result as human reply | `SUCCESS → RESPONDING` · `ERROR → FALLBACK` |
+| **DB_WRITE** | 🟡 | Creates/updates/deletes record. Requires confirmation for destructive ops | `CONFIRMED → RESPONDING` · `PENDING → AWAITING_CONFIRM` |
+| **ESCALATING** | 🔴 | Packages context, notifies human via primary number, marks convo escalated | `NOTIFIED → PAUSED` |
+| **RESPONDING** | 🟢 | Sends composed reply via WhatsApp to customer | `SENT → IDLE` · `FAIL → RETRY` |
+| **PAUSED** | 🟡 | Human agent handling. Agent monitors but does not reply | `HUMAN:RESOLVED → IDLE` · `HUMAN:RETURN → REASONING` |
+
+---
+
+## 05 — Database Schema: Supabase Tables
+
+### 🏢 `businesses`
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `uuid` **PK** | Unique business identifier |
+| `name` | `text` | Registered business name |
+| `ops_number` | `text` | WhatsApp ops number (agent handles) |
+| `primary_number` | `text` | Owner's WhatsApp (agent reports here) |
+| `gemini_context` | `jsonb` | Business-specific AI persona config |
+| `subscription_tier` | `text` | `starter` \| `growth` \| `enterprise` |
+| `created_at` | `timestamptz` | Account creation timestamp |
+
+### 💬 `conversations`
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `uuid` **PK** | Conversation thread ID |
+| `business_id` | `uuid` **FK** | Owning business |
+| `contact_wa_id` | `text` | Customer WhatsApp ID |
+| `status` | `text` | `active` \| `escalated` \| `closed` \| `paused` |
+| `last_message_at` | `timestamptz` | Last activity timestamp |
+| `escalation_reason` | `text` | Why it was escalated (nullable) |
+| `agent_context` | `jsonb` | Rolling conversation summary for AI |
+
+### 📨 `messages`
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `uuid` **PK** | Message record ID |
+| `conversation_id` | `uuid` **FK** | Parent conversation |
+| `direction` | `text` | `inbound` \| `outbound` |
+| `role` | `text` | `user` \| `agent` \| `human_agent` |
+| `body` | `text` | Message text content |
+| `media_url` | `text` | Attached media (nullable) |
+| `wa_message_id` | `text` | WhatsApp message ID for receipt tracking |
+
+### ⚡ `agent_actions`
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `uuid` **PK** | Action log ID |
+| `conversation_id` | `uuid` **FK** | Related conversation |
+| `action_type` | `text` | `query` \| `insert` \| `update` \| `delete` \| `escalate` \| `notify` |
+| `payload` | `jsonb` | Full action payload sent/received |
+| `status` | `text` | `pending` \| `success` \| `failed` |
+| `executed_at` | `timestamptz` | Execution timestamp |
+
+---
+
+## 06 — Escalation System: Human Handoff Protocol
+
+### 🔍 Detection
+Escalation is triggered by:
+- 3+ failed resolution attempts
+- Negative sentiment score below threshold
+- Keywords: `"angry"`, `"lawyer"`, `"refund now"`
+- Explicit customer request
+- Gemini uncertainty flag
+
+### 📦 Context Packaging
+Agent compiles into a structured handoff message:
+- Full conversation thread
+- Customer profile
+- Entities extracted
+- Previous actions taken
+- Gemini-generated summary
+
+### 📲 Owner Notification
+Business owner receives a WhatsApp message on their **PRIMARY number** containing:
+- Conversation summary
+- Customer details
+- Deep link to dashboard to take over the conversation
+
+---
+
+## 07 — AI Design: Gemini Flash Prompt Architecture
+
+### 🎭 System Persona Prompt
+Each business injects a custom persona: agent name, communication tone (formal/casual), business domain knowledge, product catalog context, and escalation rules. This is injected as the system prompt **per tenant**, making the agent feel like *their* employee, not a generic bot.
+
+**Tags:** `system_prompt` · `per-tenant` · `persona injection`
+
+---
+
+### 🔧 Structured Output Mode
+Gemini returns a JSON object per turn:
+
+```json
+{
+  "intent": "...",
+  "confidence": 0.95,
+  "action": "...",
+  "entities": {},
+  "reply": "...",
+  "escalate": false
+}
+```
+
+The `action` field drives the Action Router. This prevents hallucinated free-form actions and gives the system deterministic control.
+
+**Tags:** `JSON mode` · `deterministic routing`
+
+---
+
+### 🗂️ Memory Strategy
+Full message history is expensive to send each turn. Instead:
+- The **last 6 messages** are sent verbatim
+- Plus a **rolling conversation summary** (updated every 5 turns by a secondary Gemini call)
+
+This keeps context rich while staying within token limits.
+
+**Tags:** `sliding window` · `summary compression`
+
+---
+
+### 🧪 Human-Like Response Rules
+The persona prompt enforces:
+- No bullet points in replies
+- Contractions over formal language
+- Acknowledging before answering
+- Occasional natural filler phrases
+- Response length matching message length
+- Never revealing it's an AI unless asked directly
+
+**Tags:** `tone rules` · `naturalness`
+
+---
+
+## 08 — Technology: Full Stack
+
+| Layer | Technology | Detail |
+|---|---|---|
+| **Frontend** | Next.js 14 + React | App Router, Server Components |
+| **Styling** | Tailwind CSS | shadcn/ui component library |
+| **Backend API** | Node.js + Express / Hono | Deployed on Railway or Render |
+| **AI Reasoning** | Gemini Flash 2.0 | Google AI SDK, structured outputs |
+| **Database** | Supabase (Postgres) | RLS, Realtime, Edge Functions |
+| **WhatsApp** | Meta WABA / waapi.app | Webhook ingestion + send API |
+| **Auth** | Supabase Auth | JWT, OAuth (Google), magic link |
+| **Billing** | Stripe | Subscription metering, webhooks |
+| **Queue** | BullMQ + Redis | Message processing, retry logic |
+| **Hosting** | Vercel + Railway | Frontend on Vercel, API on Railway |
+| **Monitoring** | Sentry + Grafana | Error tracking, metrics |
+| **CI/CD** | GitHub Actions | Test, build, deploy pipeline |
+
+---
+
+## 09 — Business Model: SaaS Pricing Tiers
+
+### Starter — $29/mo
+*Perfect for solo operators and small shops testing AI support.*
+
+- 1 WhatsApp ops number
+- 500 AI-handled conversations/mo
+- Basic escalation (keyword triggers)
+- Supabase CRUD (read + create)
+- Daily digest to primary number
+- Community support
+
+---
+
+### Growth — $89/mo ⭐ MOST POPULAR
+*For growing businesses with active customer support needs.*
+
+- 3 WhatsApp ops numbers
+- 3,000 AI-handled conversations/mo
+- Smart escalation (sentiment + intent)
+- Full CRUD with confirmation gates
+- Real-time dashboard
+- Custom AI persona (name + tone)
+- Webhook integrations
+- Email + chat support
+
+---
+
+### Enterprise — Custom Pricing
+*Dedicated infrastructure, SLAs, and white-label options.*
+
+- Unlimited ops numbers
+- Unlimited conversations
+- Custom AI training on your data
+- White-label dashboard
+- API access
+- Dedicated account manager
+- Custom SLA + uptime guarantee
+
+---
+
+## 10 — Build Plan: Go-to-Market Roadmap
+
+### Phase 1 — Foundation (0–6 weeks)
+- [ ] Supabase schema + RLS policies
+- [ ] WhatsApp webhook ingestion service
+- [ ] Gemini Flash integration + base prompting
+- [ ] Basic CRUD agent actions (read, create)
+- [ ] Business registration flow
+- [ ] Primary number reporting (daily digest)
+
+### Phase 2 — Intelligence Layer (6–12 weeks)
+- [ ] Escalation detection engine
+- [ ] Human handoff protocol + context packaging
+- [ ] Agent memory (rolling conversation summary)
+- [ ] Full CRUD operations (update, delete with gates)
+- [ ] Dashboard MVP (React + Supabase Realtime)
+- [ ] Billing integration (Stripe or Paychangu for ZMW)
+
+### Phase 3 — SaaS Hardening (12–20 weeks)
+- [ ] Multi-tenant isolation + enterprise RLS
+- [ ] Custom AI persona per business (tone, name, knowledge)
+- [ ] Analytics dashboard (response times, escalation rates, satisfaction)
+- [ ] Webhook outgoing (notify external systems on events)
+- [ ] API access for enterprise tier
+- [ ] White-label dashboard option
+
+---
+
+## 11 — Security: Multi-Tenant Security Model
+
+### 🔐 Row Level Security
+Every Supabase table has RLS policies tied to `business_id`. A business can only ever read or write its own data — enforced at the **database level**, not just application code.
+
+### 🔑 API Key Isolation
+Each tenant gets a unique API key scoped to their `business_id`. Keys are rotatable and audited. Webhook endpoints validate a signed HMAC from WhatsApp before processing.
+
+### ⛔ Destructive Op Gates
+`DELETE` and `UPDATE` operations triggered by the agent always require a **human confirmation step** via WhatsApp before execution. No record is silently destroyed.
+
+### 📋 Full Audit Trail
+Every agent action is logged in `agent_actions` with payload, status, and timestamp. Dashboard exposes a filterable audit log for compliance and debugging.
+
+---
+
+## 12 — Product Identity: Suggested Product Names
+
+| Name | Note |
+|---|---|
+| **Agentica** | Clean, memorable, SaaS-native |
+| **Replyly** | Consumer-friendly, action-oriented |
+| **Vela** | Minimal, elegant, international |
+| **Blu_Agent** | Fits your Bluetick brand |
+| **Konnect AI** | Africa-market resonance |
+| **Presencia** | Spanish for 'presence' — always on |
+
+---
+
+*Bluetick Technology Ltd — Architecture Document v1.0*  
+*Autonomous WhatsApp Business Agent · SaaS Platform*
