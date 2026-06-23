@@ -6,6 +6,7 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   WHATSAPP_API_TOKEN: z.string().optional(),
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+  WHATSAPP_FROM_NUMBER: z.string().optional(),
   LENCO_API_KEY: z.string().optional(),
   REDIS_URL: z.string().optional(),
 });
@@ -16,6 +17,7 @@ export const env = envSchema.parse({
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpncWl4anp6bmJyc2RrbWR2bXJ3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzQwMTgzMCwiZXhwIjoyMDkyOTc3ODMwfQ.irNvjJ0A290wm2dE63GqBVkAnwzaVPO-KaCmosHCyhY',
   WHATSAPP_API_TOKEN: process.env.WHATSAPP_API_TOKEN,
   WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
+  WHATSAPP_FROM_NUMBER: process.env.WHATSAPP_FROM_NUMBER,
   LENCO_API_KEY: process.env.LENCO_API_KEY,
   REDIS_URL: process.env.REDIS_URL,
 });

@@ -15,14 +15,15 @@ export default function ConversationsPage() {
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [outboundText, setOutboundText] = useState('');
+  const [activeTab, setActiveTab] = useState('All');
   const selectedConvoRef = useRef<any>(null);
 
   // Fallback mock data
   const mockConversations = [
-    { id: '1', customer_number: '+260 771 234 567', last_message: 'I need help with my package tracking...', status: 'active', last_message_at: new Date(Date.now() - 1000 * 60 * 2).toISOString(), direction: 'inbound' },
-    { id: '2', customer_number: '+260 779 958 123', last_message: 'This is the third time I ask!!', status: 'escalated', last_message_at: new Date(Date.now() - 1000 * 60 * 14).toISOString(), direction: 'inbound' },
-    { id: '3', customer_number: '+260 772 144 987', last_message: 'Thank you for your help!', status: 'resolved', last_message_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(), direction: 'outbound' },
-    { id: '4', customer_number: '+260 770 001 456', last_message: 'What are your store hours?', status: 'active', last_message_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), direction: 'inbound' },
+    { id: '1', customer_number: '+260 771 234 567', last_message: 'I need help with my package tracking...', status: 'active', last_message_at: new Date(Date.now() - 1000 * 60 * 2).toISOString(), direction: 'inbound', topic: 'Order #8219' },
+    { id: '2', customer_number: '+260 779 958 123', last_message: 'This is the third time I ask!!', status: 'escalated', last_message_at: new Date(Date.now() - 1000 * 60 * 14).toISOString(), direction: 'inbound', topic: 'Order #4110' },
+    { id: '3', customer_number: '+260 772 144 987', last_message: 'Thank you for your help!', status: 'resolved', last_message_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(), direction: 'outbound', topic: 'Product Inquiry' },
+    { id: '4', customer_number: '+260 770 001 456', last_message: 'What are your store hours?', status: 'active', last_message_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), direction: 'inbound', topic: 'General Inquiry' },
   ];
 
   const mockMessagesMap: Record<string, any[]> = {
@@ -34,9 +35,23 @@ export default function ConversationsPage() {
     ],
     '2': [
       { id: 'm5', role: 'user', content: 'This is the third time I ask!! Why is my webhook not responding?', created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString() },
-      { id: 'm6', role: 'system', content: 'Conversation escalated: Low AI confidence (below 0.6)', created_at: new Date(Date.now() - 1000 * 60 * 14).toISOString() },
+      { id: 'm6', role: 'system', content: 'Needs your attention — customer request requires manual review', created_at: new Date(Date.now() - 1000 * 60 * 14).toISOString() },
     ]
   };
+
+  const getCustomerInfo = (number: string) => {
+    if (number.includes('234')) {
+      return { totalOrders: 3, ltv: 'ZMW 4,500', lastVisit: '2 hours ago' };
+    } else if (number.includes('958')) {
+      return { totalOrders: 1, ltv: 'ZMW 850', lastVisit: '14 mins ago' };
+    } else if (number.includes('144')) {
+      return { totalOrders: 12, ltv: 'ZMW 18,200', lastVisit: '1 hour ago' };
+    } else {
+      return { totalOrders: 0, ltv: 'ZMW 0', lastVisit: '3 hours ago' };
+    }
+  };
+
+  const customerInfo = selectedConvo ? getCustomerInfo(selectedConvo.customer_number) : null;
 
   // 1. Fetch User Business ID
   useEffect(() => {
@@ -100,6 +115,7 @@ export default function ConversationsPage() {
             direction: latestMsg?.role === 'user' ? 'inbound' : 'outbound',
             status: c.status,
             last_message_at: c.last_message_at,
+            topic: c.summary || 'Product Inquiry',
           };
         });
         setConversations(formatted);
@@ -129,7 +145,18 @@ export default function ConversationsPage() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setMessages(data || []);
+      
+      const mappedMessages = (data || []).map((m: any) => {
+        if (m.role === 'system' && (m.content.includes('Low AI confidence') || m.content.includes('escalated'))) {
+          return {
+            ...m,
+            content: 'Needs your attention — customer request requires manual review'
+          };
+        }
+        return m;
+      });
+
+      setMessages(mappedMessages);
     } catch (err) {
       console.error('Error fetching messages:', err);
     }
@@ -267,11 +294,19 @@ export default function ConversationsPage() {
     }
   }
 
+  const filteredConversations = conversations.filter(chat => {
+    if (activeTab === 'All') return true;
+    if (activeTab === 'Open') return chat.status === 'active';
+    if (activeTab === 'Needs Attention') return chat.status === 'escalated';
+    if (activeTab === 'Resolved') return chat.status === 'resolved';
+    return true;
+  });
+
   return (
     <div className="h-[calc(100vh-12rem)] flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-3xl font-headline font-bold text-white">Conversations</h1>
-        <p className="text-[#64748B] text-sm">Manage and monitor customer sessions in real-time.</p>
+        <h1 className="text-3xl font-headline font-bold text-white">Customer Messages</h1>
+        <p className="text-[#64748B] text-sm">View and manage customer inquiries</p>
       </header>
 
       {/* Filter Bar */}
@@ -284,12 +319,13 @@ export default function ConversationsPage() {
           />
         </div>
         <div className="flex gap-1 h-9 bg-[#07080F] p-1 rounded-lg border border-[#1E2340]">
-          {['All', 'Active', 'Escalated', 'Resolved'].map((tab) => (
+          {['All', 'Open', 'Needs Attention', 'Resolved'].map((tab) => (
             <button 
               key={tab}
+              onClick={() => setActiveTab(tab)}
               className={cn(
                 "px-4 text-[11px] font-headline font-bold rounded-md transition-all",
-                tab === 'All' ? "bg-[#1A1F3A] text-white shadow-sm" : "text-[#64748B] hover:text-[#E2E8F0]"
+                activeTab === tab ? "bg-[#1A1F3A] text-white shadow-sm" : "text-[#64748B] hover:text-[#E2E8F0]"
               )}
             >
               {tab}
@@ -298,15 +334,19 @@ export default function ConversationsPage() {
         </div>
       </div>
 
-      <div className="flex gap-6 flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 overflow-hidden relative">
         {/* Table Area */}
-        <div className="flex-1 glass-card overflow-hidden flex flex-col">
+        <div className={cn(
+          "flex-1 liquid-glass-panel overflow-hidden flex flex-col",
+          selectedConvo && "hidden lg:flex"
+        )}>
           <div className="overflow-x-auto overflow-y-auto flex-1">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
                 <tr className="border-b border-[#1E2340] bg-[#131629]/50">
                   <th className="p-4 w-12"><Input type="checkbox" className="w-4 h-4 rounded border-[#1E2340] bg-transparent" /></th>
                   <th className="p-4 text-[10px] font-mono text-[#64748B] uppercase tracking-widest">Customer</th>
+                  <th className="p-4 text-[10px] font-mono text-[#64748B] uppercase tracking-widest">Order / Topic</th>
                   <th className="p-4 text-[10px] font-mono text-[#64748B] uppercase tracking-widest">Last Message</th>
                   <th className="p-4 text-[10px] font-mono text-[#64748B] uppercase tracking-widest">Status</th>
                   <th className="p-4 text-[10px] font-mono text-[#64748B] uppercase tracking-widest">Time</th>
@@ -314,7 +354,7 @@ export default function ConversationsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1E2340]">
-                {conversations.map((chat) => (
+                {filteredConversations.map((chat) => (
                   <tr 
                     key={chat.id} 
                     onClick={() => setSelectedConvo(chat)}
@@ -328,6 +368,7 @@ export default function ConversationsPage() {
                       <Input type="checkbox" className="w-4 h-4 rounded border-[#1E2340] bg-transparent" />
                     </td>
                     <td className="p-4 font-mono text-sm text-white">{chat.customer_number}</td>
+                    <td className="p-4 text-xs text-[#A78BFA] font-medium">{chat.topic || 'Product Inquiry'}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-2 text-xs text-[#E2E8F0] line-clamp-1">
                         {chat.direction === 'inbound' ? <span className="text-[#A78BFA]">←</span> : <span className="text-[#4F6EF7]">→</span>}
@@ -352,20 +393,38 @@ export default function ConversationsPage() {
 
         {/* Selected Convo Side Panel */}
         {selectedConvo && (
-          <div className="w-[420px] glass-card flex flex-col animate-in slide-in-from-right-4 duration-300">
+          <div className="w-full lg:w-[420px] liquid-glass-panel flex flex-col animate-in slide-in-from-right-4 duration-300">
             {/* Panel Header */}
-            <div className="p-6 border-b border-[#1E2340] bg-[#131629]/50 flex items-start justify-between">
-              <div className="space-y-1">
-                <h3 className="font-mono text-lg font-bold text-white tracking-tight">{selectedConvo.customer_number}</h3>
-                <div className="flex items-center gap-3 text-[10px] font-mono text-[#64748B] uppercase">
-                  <StatusBadge status={selectedConvo.status} className="h-4 px-2" />
-                  <span>·</span>
-                  <span>{messages.length} Messages</span>
+            <div className="p-6 border-b border-[#1E2340] bg-[#131629]/50 flex flex-col gap-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <h3 className="font-mono text-lg font-bold text-white tracking-tight">{selectedConvo.customer_number}</h3>
+                  <div className="flex items-center gap-3 text-[10px] font-mono text-[#64748B] uppercase">
+                    <StatusBadge status={selectedConvo.status} className="h-4 px-2" />
+                    <span>·</span>
+                    <span>{messages.length} Messages</span>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedConvo(null)} className="text-[#3A4060] hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Customer Stats Panel */}
+              <div className="grid grid-cols-3 gap-2 p-3 bg-[#07080F]/50 border border-[#1E2340] rounded-xl text-center">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-mono text-[#64748B] uppercase">Total Orders</span>
+                  <span className="text-xs font-bold text-white mt-0.5">{customerInfo?.totalOrders}</span>
+                </div>
+                <div className="flex flex-col border-x border-[#1E2340]">
+                  <span className="text-[9px] font-mono text-[#64748B] uppercase">LTV</span>
+                  <span className="text-xs font-bold text-[#22D3A0] mt-0.5">{customerInfo?.ltv}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-mono text-[#64748B] uppercase">Last Visit</span>
+                  <span className="text-xs font-bold text-[#A78BFA] mt-0.5">{customerInfo?.lastVisit}</span>
                 </div>
               </div>
-              <button onClick={() => setSelectedConvo(null)} className="text-[#3A4060] hover:text-white transition-colors">
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
             {/* Message Thread */}
@@ -433,7 +492,7 @@ export default function ConversationsPage() {
                     onClick={() => handleUpdateStatus('escalated')}
                     className="flex-1 py-2.5 bg-[#FF4D6D22] border border-[#FF4D6D44] text-[#FF4D6D] rounded-lg text-[10px] font-headline font-bold uppercase hover:bg-[#FF4D6D33] transition-all"
                   >
-                    Escalate Manually
+                    Flag for Follow-up
                   </button>
                 )}
                 {selectedConvo.status !== 'resolved' ? (
@@ -441,7 +500,7 @@ export default function ConversationsPage() {
                     onClick={() => handleUpdateStatus('resolved')}
                     className="flex-1 py-2.5 bg-[#1E2340] border border-[#2E3560] text-white rounded-lg text-[10px] font-headline font-bold uppercase hover:bg-[#2E3560] transition-all"
                   >
-                    Close Convo
+                    Mark Resolved
                   </button>
                 ) : (
                   <button 

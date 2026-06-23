@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 
-type StatusType = 'active' | 'escalated' | 'paused' | 'closed' | 'success' | 'failed' | 'pending';
+type StatusType = 'active' | 'escalated' | 'paused' | 'closed' | 'success' | 'failed' | 'pending' | 'resolved';
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -17,6 +17,7 @@ const statusConfig: Record<StatusType, { label: string; dot: string; bg: string;
   success: { label: 'Success', dot: 'bg-[#22D3A0]', bg: 'bg-[#22D3A022]', text: 'text-[#22D3A0]' },
   failed: { label: 'Failed', dot: 'bg-[#FF4D6D]', bg: 'bg-[#FF4D6D22]', text: 'text-[#FF4D6D]' },
   pending: { label: 'Pending', dot: 'bg-[#A78BFA]', bg: 'bg-[#A78BFA22]', text: 'text-[#A78BFA]' },
+  resolved: { label: 'Resolved', dot: 'bg-[#64748B]', bg: 'bg-[#64748B22]', text: 'text-[#64748B]' },
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {

@@ -34,17 +34,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   
   const navItems = [
-    { icon: LayoutDashboard, label: 'Overview', href: '/dashboard' },
-    { icon: MessageSquare, label: 'Conversations', href: '/conversations', badge: 3 },
-    { icon: BarChart3, label: 'Analytics', href: '/analytics' },
-    { icon: History, label: 'Audit Log', href: '/audit-log' },
+    { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+    { icon: MessageSquare, label: 'Customers', href: '/conversations', badge: 3 },
+    { icon: BarChart3, label: 'Business Analytics', href: '/analytics' },
+    { icon: History, label: 'Activity', href: '/audit-log' },
   ];
 
   const settingsItems = [
-    { label: 'General', href: '/settings/general' },
-    { label: 'Numbers', href: '/settings/numbers' },
-    { label: 'Agent Persona', href: '/settings/persona' },
-    { label: 'Escalation', href: '/settings/escalation' },
+    { label: 'Business Profile', href: '/settings/general' },
+    { label: 'Channels', href: '/settings/numbers' },
+    { label: 'AI Assistant', href: '/settings/persona' },
+    { label: 'Notifications', href: '/settings/escalation' },
     { label: 'Billing', href: '/settings/billing' },
   ];
 
@@ -61,7 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="font-headline font-bold text-lg tracking-tight text-white leading-none">Blu_bot</span>
                 <div className="flex items-center gap-1.5 mt-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#22D3A0] animate-pulse" />
-                  <span className="text-[10px] font-mono text-[#22D3A0] uppercase tracking-widest">Agent Active</span>
+                  <span className="text-[10px] font-mono text-[#22D3A0] uppercase tracking-widest">Online</span>
                 </div>
               </div>
             </div>
@@ -117,16 +117,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="p-3 rounded-xl bg-[#131629] border border-[#1E2340] space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-[#4F6EF7]/20 flex items-center justify-center text-[#4F6EF7] font-bold text-xs">
-                  BU
+                  AC
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-white leading-tight">Business Unit 01</span>
+                  <span className="text-[11px] font-bold text-white leading-tight">Acme Corp</span>
                   <span className="text-[9px] font-mono text-[#A78BFA] uppercase">Growth Plan</span>
                 </div>
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-[9px] font-mono text-[#64748B]">
-                  <span>CONVERSATIONS</span>
+                  <span>MESSAGES</span>
                   <span>1,240 / 3,000</span>
                 </div>
                 <div className="h-1 w-full bg-[#1E2340] rounded-full overflow-hidden">
@@ -141,8 +141,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </SidebarFooter>
         </Sidebar>
         
-        <main className="flex-1 overflow-y-auto relative">
-          <div className="p-8 max-w-7xl mx-auto space-y-8 pb-24">
+        <main className="flex-1 overflow-y-auto relative w-full">
+          {/* Mobile Top Header */}
+          <div className="flex items-center justify-between p-4 border-b border-[#1E2340] bg-[#0E1020] lg:hidden">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger className="text-white hover:bg-[#1A1F3A]" />
+              <span className="font-headline font-bold text-sm tracking-tight text-white">Blu_bot</span>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-[#4F6EF7]/20 flex items-center justify-center text-[#4F6EF7] font-bold text-xs">
+              AC
+            </div>
+          </div>
+          
+          <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-24 w-full">
             {children}
           </div>
         </main>

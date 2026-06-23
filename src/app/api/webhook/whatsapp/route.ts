@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { aiAgentAutomaticResponse } from '@/ai/flows/ai-agent-automatic-response-flow';
 import { escalationDetection } from '@/ai/flows/escalation-detection-flow';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { whatsappSender } from '@/lib/whatsapp/sender';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -187,7 +188,7 @@ async function processMessageAsync(from: string, body: string, businessId: strin
     }
 
     // C. Send WhatsApp Message
-    // await whatsappSender.send(from, response.reply);
+    await whatsappSender.send(from, response.reply);
   } catch (err) {
     console.error('[Agent Pipeline] Async processing failed:', err);
   }
