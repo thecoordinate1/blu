@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Facebook } from 'lucide-react';
+import { Globe } from 'lucide-react';
 
 export function WhatsAppSignup() {
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +35,7 @@ export function WhatsAppSignup() {
           disabled={true} // Disabled as per requirements
           className="w-full sm:w-auto"
         >
-          <Facebook className="mr-2 h-4 w-4" />
+          <Globe className="mr-2 h-4 w-4" />
           {isLoading ? 'Connecting...' : 'Connect with Meta'}
         </Button>
         <p className="text-xs text-muted-foreground mt-4">

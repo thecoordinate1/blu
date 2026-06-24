@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   MessageSquare, 
@@ -29,10 +29,45 @@ import {
   SidebarProvider,
   SidebarTrigger
 } from '@/components/ui/sidebar';
+import { supabase } from '@/lib/supabase/client';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  
+  const [businessName, setBusinessName] = useState('Acme Corp');
+  const [planName, setPlanName] = useState('Growth Plan');
+  const [messagesUsed, setMessagesUsed] = useState(0);
+  const [messagesLimit, setMessagesLimit] = useState(1000);
+
+  useEffect(() => {
+    async function loadBusiness() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: business } = await supabase
+        .from('businesses')
+        .select('name, subscription_tier, messages_used, messages_limit')
+        .eq('owner_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (business) {
+        if (business.name) setBusinessName(business.name);
+        if (business.subscription_tier) {
+          const tier = business.subscription_tier.charAt(0).toUpperCase() + business.subscription_tier.slice(1);
+          setPlanName(`${tier} Plan`);
+        }
+        if (business.messages_used !== undefined && business.messages_used !== null) {
+          setMessagesUsed(business.messages_used);
+        }
+        if (business.messages_limit !== undefined && business.messages_limit !== null) {
+          setMessagesLimit(business.messages_limit);
+        }
+      }
+    }
+
+    loadBusiness();
+  }, []);
+
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
     { icon: MessageSquare, label: 'Customers', href: '/conversations', badge: 3 },
@@ -47,6 +82,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { label: 'Notifications', href: '/settings/escalation' },
     { label: 'Billing', href: '/settings/billing' },
   ];
+
+  const initials = businessName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'AC';
+
+  const usagePercent = messagesLimit > 0 
+    ? Math.min(100, Math.round((messagesUsed / messagesLimit) * 100))
+    : 0;
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -117,23 +163,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="p-3 rounded-xl bg-[#131629] border border-[#1E2340] space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-[#4F6EF7]/20 flex items-center justify-center text-[#4F6EF7] font-bold text-xs">
-                  AC
+                  {initials}
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-white leading-tight">Acme Corp</span>
-                  <span className="text-[9px] font-mono text-[#A78BFA] uppercase">Growth Plan</span>
+                  <span className="text-[11px] font-bold text-white leading-tight">{businessName}</span>
+                  <span className="text-[9px] font-mono text-[#A78BFA] uppercase">{planName}</span>
                 </div>
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-[9px] font-mono text-[#64748B]">
                   <span>MESSAGES</span>
-                  <span>1,240 / 3,000</span>
+                  <span>{messagesUsed.toLocaleString()} / {messagesLimit.toLocaleString()}</span>
                 </div>
                 <div className="h-1 w-full bg-[#1E2340] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#4F6EF7] rounded-full" style={{ width: '41%' }} />
+                  <div className="h-full bg-[#4F6EF7] rounded-full" style={{ width: `${usagePercent}%` }} />
                 </div>
               </div>
-              <button className="flex items-center gap-2 text-[10px] font-bold text-[#64748B] hover:text-white transition-colors w-full pt-1">
+              <button 
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.href = '/login';
+                }}
+                className="flex items-center gap-2 text-[10px] font-bold text-[#64748B] hover:text-white transition-colors w-full pt-1"
+              >
                 <LogOut className="w-3 h-3" />
                 Sign Out
               </button>

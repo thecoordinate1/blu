@@ -141,10 +141,21 @@ async function processMessageAsync(from: string, body: string, businessId: strin
         });
     }
 
-    // A. Detect Escalation first
-    const detection = await escalationDetection({ customerMessage: body });
-    
-    if (detection.escalate) {
+    // A. Detect Escalation first (with retry on transient 503)
+    let detection: Awaited<ReturnType<typeof escalationDetection>> | null = null;
+    try {
+      detection = await escalationDetection({ customerMessage: body });
+    } catch (err: any) {
+      console.warn('[Agent Pipeline] Escalation detection failed (attempt 1), retrying in 3s...', err?.originalMessage || err?.message);
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        detection = await escalationDetection({ customerMessage: body });
+      } catch (retryErr: any) {
+        console.warn('[Agent Pipeline] Escalation detection failed after retry — skipping escalation check.', retryErr?.originalMessage || retryErr?.message);
+      }
+    }
+
+    if (detection?.escalate) {
        console.log(`[Agent Pipeline] ESCALATING session for ${from} due to ${detection.escalateReason}`);
        if (conversationId) {
          await supabaseAdmin
@@ -163,15 +174,43 @@ async function processMessageAsync(from: string, body: string, businessId: strin
              role: 'system',
              content: `Conversation escalated: ${detection.escalateReason}`
            });
+
+         // Log escalation action
+         await supabaseAdmin
+           .from('agent_actions')
+           .insert({
+             conversation_id: conversationId,
+             business_id: activeBusinessId,
+             action_type: 'escalation',
+             payload: { reason: detection.escalateReason },
+             status: 'success'
+           });
        }
        return;
     }
 
-    // B. Generate AI Response
-    const response = await aiAgentAutomaticResponse({ 
-      customerMessage: body,
-      conversationHistory: conversationHistory
-    });
+    // B. Generate AI Response (with retry on transient 503)
+    let response: { reply: string } | null = null;
+    try {
+      response = await aiAgentAutomaticResponse({ 
+        customerMessage: body,
+        conversationHistory: conversationHistory
+      });
+    } catch (err: any) {
+      console.warn('[Agent Pipeline] AI response failed (attempt 1), retrying in 3s...', err?.originalMessage || err?.message);
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        response = await aiAgentAutomaticResponse({ 
+          customerMessage: body,
+          conversationHistory: conversationHistory
+        });
+      } catch (retryErr: any) {
+        console.warn('[Agent Pipeline] AI response failed after retry — using fallback reply.', retryErr?.originalMessage || retryErr?.message);
+        response = { reply: "Thanks for reaching out! I'm experiencing high demand right now. A team member will follow up with you shortly." };
+      }
+    }
+
+    if (!response) return;
 
     console.log(`[Agent Pipeline] Generated response: ${response.reply}`);
     
@@ -184,6 +223,17 @@ async function processMessageAsync(from: string, body: string, businessId: strin
           business_id: activeBusinessId,
           role: 'agent',
           content: response.reply
+        });
+
+      // Log auto-reply action
+      await supabaseAdmin
+        .from('agent_actions')
+        .insert({
+          conversation_id: conversationId,
+          business_id: activeBusinessId,
+          action_type: 'auto_reply',
+          payload: { reply: response.reply },
+          status: 'success'
         });
     }
 

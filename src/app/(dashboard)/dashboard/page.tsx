@@ -3,10 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { MetricCard } from '@/components/shared/metric-card';
 import {
-  DollarSign,
-  ShoppingBag,
-  Star,
-  TrendingUp,
+  MessageSquare,
   Bot,
   Users,
   Clock,
@@ -21,7 +18,9 @@ import {
   Save,
   PlusCircle,
   Search,
-  X
+  X,
+  AlertTriangle,
+  CreditCard,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -37,36 +36,7 @@ import {
 } from 'recharts';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-
-const revenueData = [
-  { day: 'Mon', revenue: 18200, previous: 15400 },
-  { day: 'Tue', revenue: 22100, previous: 19800 },
-  { day: 'Wed', revenue: 19500, previous: 21200 },
-  { day: 'Thu', revenue: 28400, previous: 23600 },
-  { day: 'Fri', revenue: 31200, previous: 25100 },
-  { day: 'Sat', revenue: 26800, previous: 22900 },
-  { day: 'Sun', revenue: 24850, previous: 20300 },
-];
-
-const topProducts = [
-  { name: 'Premium Package', revenue: 12400, orders: 31, pct: 100 },
-  { name: 'Standard Plan', revenue: 8600, orders: 43, pct: 69 },
-  { name: 'Consultation Hour', revenue: 5200, orders: 26, pct: 42 },
-  { name: 'Add-on Service', revenue: 3800, orders: 19, pct: 31 },
-  { name: 'Express Delivery', revenue: 2100, orders: 14, pct: 17 },
-];
-
-const customerActivity = [
-  { hour: '6am', value: 4 },
-  { hour: '8am', value: 12 },
-  { hour: '10am', value: 28 },
-  { hour: '12pm', value: 35 },
-  { hour: '2pm', value: 42 },
-  { hour: '4pm', value: 38 },
-  { hour: '6pm', value: 30 },
-  { hour: '8pm', value: 18 },
-  { hour: '10pm', value: 8 },
-];
+import { supabase } from '@/lib/supabase/client';
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -75,25 +45,34 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="liquid-glass p-3 !rounded-xl text-xs" style={{ minWidth: 140 }}>
-      <p className="font-headline text-white font-bold mb-1.5">{label}</p>
-      {payload.map((entry: any, i: number) => (
-        <div key={i} className="flex justify-between gap-4 text-[11px]">
-          <span className="text-[#8893a7]">{entry.name === 'revenue' ? 'This week' : 'Last week'}</span>
-          <span className="font-mono text-white">ZMW {(entry.value as number).toLocaleString()}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
+interface DashboardKPIs {
+  totalConversations: number;
+  messagesHandled: number;
+  escalations: number;
+  paymentsTotal: number;
+}
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  const [kpis, setKpis] = useState<DashboardKPIs>({
+    totalConversations: 0,
+    messagesHandled: 0,
+    escalations: 0,
+    paymentsTotal: 0,
+  });
+  const [agentStats, setAgentStats] = useState({
+    totalMessages: 0,
+    agentMessages: 0,
+    systemMessages: 0,
+    conversations: 0,
+  });
+  const [paymentsByDay, setPaymentsByDay] = useState<{ day: string; revenue: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [businessName, setBusinessName] = useState<string | null>(null);
+
+  // Inventory (localStorage-based)
   const [inventory, setInventory] = useState<any[]>([]);
   const [invSearch, setInvSearch] = useState('');
   const [invCategory, setInvCategory] = useState('All');
@@ -108,6 +87,80 @@ export default function DashboardPage() {
   const [formPrice, setFormPrice] = useState('');
   const [formStock, setFormStock] = useState('');
   const [formCategory, setFormCategory] = useState('Solar Kits');
+
+  // Fetch real data from Supabase
+  useEffect(() => {
+    async function loadDashboardData() {
+      try {
+        // Get business
+        const { data: biz } = await supabase
+          .from('businesses')
+          .select('id, name')
+          .limit(1)
+          .maybeSingle();
+
+        if (!biz) {
+          setLoading(false);
+          return;
+        }
+
+        setBusinessName(biz.name);
+        const bizId = biz.id;
+
+        // Parallel queries for KPIs
+        const [convosRes, agentMsgsRes, escalationsRes, paymentsRes, totalMsgsRes, systemMsgsRes] = await Promise.all([
+          supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('business_id', bizId),
+          supabase.from('messages').select('id', { count: 'exact', head: true }).eq('business_id', bizId).eq('role', 'agent'),
+          supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('business_id', bizId).eq('status', 'escalated'),
+          supabase.from('payments').select('amount').eq('business_id', bizId).eq('status', 'successful'),
+          supabase.from('messages').select('id', { count: 'exact', head: true }).eq('business_id', bizId),
+          supabase.from('messages').select('id', { count: 'exact', head: true }).eq('business_id', bizId).eq('role', 'system'),
+        ]);
+
+        const paymentsTotal = (paymentsRes.data || []).reduce((sum, p) => sum + Number(p.amount), 0);
+
+        setKpis({
+          totalConversations: convosRes.count || 0,
+          messagesHandled: agentMsgsRes.count || 0,
+          escalations: escalationsRes.count || 0,
+          paymentsTotal,
+        });
+
+        setAgentStats({
+          totalMessages: totalMsgsRes.count || 0,
+          agentMessages: agentMsgsRes.count || 0,
+          systemMessages: systemMsgsRes.count || 0,
+          conversations: convosRes.count || 0,
+        });
+
+        // Payment data by day (last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const { data: recentPayments } = await supabase
+          .from('payments')
+          .select('amount, created_at')
+          .eq('business_id', bizId)
+          .eq('status', 'successful')
+          .gte('created_at', sevenDaysAgo.toISOString());
+
+        if (recentPayments && recentPayments.length > 0) {
+          const dayMap: Record<string, number> = {};
+          const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          recentPayments.forEach(p => {
+            const d = new Date(p.created_at);
+            const key = dayNames[d.getDay()];
+            dayMap[key] = (dayMap[key] || 0) + Number(p.amount);
+          });
+          setPaymentsByDay(Object.entries(dayMap).map(([day, revenue]) => ({ day, revenue })));
+        }
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadDashboardData();
+  }, []);
 
   // Load inventory from localStorage
   useEffect(() => {
@@ -221,6 +274,25 @@ export default function DashboardPage() {
     day: 'numeric',
   });
 
+  const agentPct = agentStats.totalMessages > 0
+    ? Math.round((agentStats.agentMessages / agentStats.totalMessages) * 100)
+    : 0;
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="liquid-glass p-3 !rounded-xl text-xs" style={{ minWidth: 140 }}>
+        <p className="font-headline text-white font-bold mb-1.5">{label}</p>
+        {payload.map((entry: any, i: number) => (
+          <div key={i} className="flex justify-between gap-4 text-[11px]">
+            <span className="text-[#8893a7]">Revenue</span>
+            <span className="font-mono text-white">ZMW {(entry.value as number).toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-10">
       {/* Header */}
@@ -242,38 +314,34 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <MetricCard
-          label="Revenue Today"
-          value="ZMW 24,850"
-          trend={{ value: '18%', positive: true }}
-          subtitle="vs yesterday"
-          icon={DollarSign}
-          color="#22D3A0"
-          accent="green"
-        />
-        <MetricCard
-          label="Orders Processed"
-          value="67"
-          trend={{ value: '8%', positive: true }}
-          subtitle="vs yesterday"
-          icon={ShoppingBag}
+          label="Total Conversations"
+          value={loading ? '—' : kpis.totalConversations.toLocaleString()}
+          subtitle="all time"
+          icon={MessageSquare}
           color="#4F6EF7"
           accent="blue"
         />
         <MetricCard
-          label="Customer Satisfaction"
-          value="4.8 / 5.0"
-          trend={{ value: '0.2', positive: true }}
-          subtitle="vs last week"
-          icon={Star}
+          label="Messages Handled"
+          value={loading ? '—' : kpis.messagesHandled.toLocaleString()}
+          subtitle="by AI agent"
+          icon={Bot}
+          color="#22D3A0"
+          accent="green"
+        />
+        <MetricCard
+          label="Escalations"
+          value={loading ? '—' : kpis.escalations.toLocaleString()}
+          subtitle="needs attention"
+          icon={AlertTriangle}
           color="#F5A623"
           accent="amber"
         />
         <MetricCard
-          label="Conversion Rate"
-          value="32.4%"
-          trend={{ value: '4.1%', positive: true }}
-          subtitle="vs last week"
-          icon={TrendingUp}
+          label="Payments Received"
+          value={loading ? '—' : `ZMW ${kpis.paymentsTotal.toLocaleString()}`}
+          subtitle="successful"
+          icon={CreditCard}
           color="#A78BFA"
           accent="purple"
         />
@@ -285,18 +353,14 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 liquid-glass-panel p-6 space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-headline text-base font-bold text-white">Revenue Trend</h2>
-              <p className="text-[11px] text-[#64748B] mt-0.5">Last 7 days vs previous period</p>
-            </div>
-            <div className="flex items-center gap-5 text-[10px] font-mono uppercase text-[#64748B]">
-              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#4F6EF7]" /> This week</div>
-              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#4F6EF7]/30" /> Last week</div>
+              <h2 className="font-headline text-base font-bold text-white">Payment Revenue</h2>
+              <p className="text-[11px] text-[#64748B] mt-0.5">Last 7 days — successful payments</p>
             </div>
           </div>
           <div className="h-72 w-full">
-            {mounted && (
+            {mounted && paymentsByDay.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={revenueData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+                <AreaChart data={paymentsByDay} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
                   <defs>
                     <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#4F6EF7" stopOpacity={0.3} />
@@ -319,16 +383,6 @@ export default function DashboardPage() {
                   <Tooltip content={<CustomTooltip />} />
                   <Area
                     type="monotone"
-                    dataKey="previous"
-                    stroke="rgba(79,110,247,0.25)"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 4"
-                    fill="none"
-                    name="previous"
-                    dot={false}
-                  />
-                  <Area
-                    type="monotone"
                     dataKey="revenue"
                     stroke="#4F6EF7"
                     strokeWidth={2.5}
@@ -339,6 +393,14 @@ export default function DashboardPage() {
                   />
                 </AreaChart>
               </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <CreditCard className="w-8 h-8 text-[#3A4060] mx-auto" />
+                  <p className="text-xs text-[#64748B] font-mono">No payment data yet</p>
+                  <p className="text-[10px] text-[#3A4060]">Revenue will appear here once payments are processed</p>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -351,16 +413,16 @@ export default function DashboardPage() {
             </div>
             <div>
               <h2 className="font-headline text-base font-bold text-white">Agent Impact</h2>
-              <p className="text-[10px] text-[#64748B] mt-0.5">Today&apos;s performance</p>
+              <p className="text-[10px] text-[#64748B] mt-0.5">Overall performance</p>
             </div>
           </div>
 
           <div className="space-y-4">
             {[
-              { label: 'Orders handled', value: '56', sub: 'of 67 total', icon: ShoppingBag, color: '#4F6EF7' },
-              { label: 'Queries resolved', value: '142', sub: '94% success rate', icon: Sparkles, color: '#22D3A0' },
-              { label: 'Upsells made', value: '18', sub: 'ZMW 4,200 added', icon: TrendingUp, color: '#F5A623' },
-              { label: 'Staff hours saved', value: '12.4h', sub: '≈ ZMW 1,860 saved', icon: Clock, color: '#A78BFA' },
+              { label: 'Conversations', value: agentStats.conversations.toLocaleString(), sub: 'total threads', icon: MessageSquare, color: '#4F6EF7' },
+              { label: 'Agent replies', value: agentStats.agentMessages.toLocaleString(), sub: 'automated responses', icon: Sparkles, color: '#22D3A0' },
+              { label: 'Total messages', value: agentStats.totalMessages.toLocaleString(), sub: 'across all conversations', icon: Users, color: '#F5A623' },
+              { label: 'System events', value: agentStats.systemMessages.toLocaleString(), sub: 'escalations & status changes', icon: Clock, color: '#A78BFA' },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3 py-2">
                 <div
@@ -384,128 +446,12 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2 p-3 rounded-xl bg-[#4F6EF7]/5">
               <Sparkles className="w-4 h-4 text-[#4F6EF7] flex-shrink-0" />
               <p className="text-[11px] text-[#8893a7] leading-relaxed">
-                Your agent handled <span className="text-white font-bold">84%</span> of all customer interactions today
+                {agentStats.totalMessages > 0 ? (
+                  <>Your agent handled <span className="text-white font-bold">{agentPct}%</span> of all messages</>
+                ) : (
+                  <>Send your first WhatsApp message to see agent stats</>
+                )}
               </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Row — Top Products + Customer Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Products */}
-        <div className="liquid-glass-panel p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-2xl bg-[#22D3A0]/10 flex items-center justify-center">
-                <Package className="w-4 h-4 text-[#22D3A0]" />
-              </div>
-              <h2 className="font-headline text-base font-bold text-white">Top Products</h2>
-            </div>
-            <span className="text-[10px] font-mono text-[#64748B] uppercase">This week</span>
-          </div>
-          <div className="space-y-4">
-            {topProducts.map((product, i) => (
-              <div key={i} className="group">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] font-mono text-[#3A4060] w-4 text-right">{i + 1}</span>
-                    <span className="text-xs text-white group-hover:text-[#4F6EF7] transition-colors">{product.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-[10px] font-mono text-[#64748B]">{product.orders} sold</span>
-                    <span className="text-xs font-mono font-bold text-white">ZMW {product.revenue.toLocaleString()}</span>
-                  </div>
-                </div>
-                <div className="ml-6 h-1.5 bg-white/[0.03] rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: mounted ? `${product.pct}%` : '0%',
-                      background: `linear-gradient(90deg, #22D3A0, #4F6EF7)`,
-                      opacity: 1 - i * 0.15,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Customer Insights */}
-        <div className="liquid-glass-panel p-6 space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-[#A78BFA]/10 flex items-center justify-center">
-              <Users className="w-4 h-4 text-[#A78BFA]" />
-            </div>
-            <div>
-              <h2 className="font-headline text-base font-bold text-white">Customer Insights</h2>
-              <p className="text-[10px] text-[#64748B] mt-0.5">Activity & engagement today</p>
-            </div>
-          </div>
-
-          {/* Customer Breakdown */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: 'New', value: '24', color: '#4F6EF7' },
-              { label: 'Returning', value: '43', color: '#22D3A0' },
-              { label: 'VIP', value: '8', color: '#F5A623' },
-            ].map((seg, i) => (
-              <div key={i} className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] text-center">
-                <span className="block font-headline text-xl font-bold text-white">{seg.value}</span>
-                <span className="text-[10px] font-mono uppercase tracking-wider" style={{ color: seg.color }}>{seg.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Peak Hours */}
-          <div>
-            <h3 className="text-[10px] font-mono text-[#64748B] uppercase tracking-widest mb-3">Peak Hours Today</h3>
-            <div className="h-28 w-full">
-              {mounted && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={customerActivity} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
-                    <XAxis
-                      dataKey="hour"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: '#64748B', fontSize: 9, fontFamily: 'JetBrains Mono' }}
-                      interval={1}
-                    />
-                    <YAxis hide />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={20}>
-                      {customerActivity.map((entry, idx) => (
-                        <Cell
-                          key={idx}
-                          fill={entry.value > 30 ? '#4F6EF7' : 'rgba(79,110,247,0.25)'}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          {/* Common Inquiries */}
-          <div>
-            <h3 className="text-[10px] font-mono text-[#64748B] uppercase tracking-widest mb-3">Top Inquiry Types</h3>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: 'Order Status', count: 38 },
-                { label: 'Product Info', count: 27 },
-                { label: 'Returns', count: 14 },
-                { label: 'Pricing', count: 12 },
-                { label: 'Booking', count: 9 },
-              ].map((tag, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] text-[11px] hover:border-white/[0.12] transition-colors cursor-default"
-                >
-                  <span className="text-[#8893a7]">{tag.label}</span>
-                  <span className="font-mono text-white font-bold">{tag.count}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>
