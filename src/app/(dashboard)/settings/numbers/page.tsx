@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, Wifi, WifiOff, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
-import { WhatsAppSignup } from '@/components/whatsapp-signup';
+import { WhatsAppQRConnect } from '@/components/whatsapp-qr-connect';
 
 interface ConnectedNumber {
   id: string;
@@ -22,17 +22,17 @@ export default function NumbersSettingsPage() {
 
     async function loadNumbers() {
       const { data } = await supabase
-        .from('phone_numbers')
-        .select('id, display_phone_number, verified_name, quality_rating')
+        .from('whatsapp_sessions')
+        .select('id, display_phone_number, verified_name, status')
         .order('created_at', { ascending: false });
 
       if (data && data.length > 0) {
         setNumbers(
-          data.map((n: { id: string; display_phone_number?: string; verified_name?: string }) => ({
+          data.map((n: { id: string; display_phone_number?: string; verified_name?: string; status?: string }) => ({
             id: n.id,
             display_number: n.display_phone_number || 'Unknown',
             display_name: n.verified_name || 'WhatsApp Number',
-            status: 'connected' as const,
+            status: (n.status === 'connected' ? 'connected' : n.status === 'pending' ? 'pending' : 'disconnected') as ConnectedNumber['status'],
           }))
         );
       }
@@ -128,7 +128,7 @@ export default function NumbersSettingsPage() {
             Connect a New Number
           </h2>
         </div>
-        <WhatsAppSignup />
+        <WhatsAppQRConnect />
       </div>
     </div>
   );

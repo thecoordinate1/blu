@@ -22,6 +22,8 @@ export interface Database {
           whatsapp_number: string | null
           subscription_tier: 'free' | 'pro' | 'enterprise'
           owner_id: string
+          messages_used: number
+          messages_limit: number
         }
         Insert: {
           id?: string
@@ -156,6 +158,41 @@ export interface Database {
         }
         Update: {
           status?: 'pending' | 'success' | 'failed'
+        }
+      }
+      /**
+       * WhatsApp sessions managed by whatsapp-web.js gateway.
+       */
+      whatsapp_sessions: {
+        Row: {
+          id: string
+          business_id: string
+          display_phone_number: string | null
+          verified_name: string | null
+          status: 'pending' | 'connected' | 'disconnected'
+          quality_rating: string | null
+          session_data: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          business_id: string
+          display_phone_number?: string | null
+          verified_name?: string | null
+          status?: 'pending' | 'connected' | 'disconnected'
+          quality_rating?: string | null
+          session_data?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          display_phone_number?: string | null
+          verified_name?: string | null
+          status?: 'pending' | 'connected' | 'disconnected'
+          quality_rating?: string | null
+          session_data?: Json | null
+          updated_at?: string
         }
       }
     }

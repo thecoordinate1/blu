@@ -12,10 +12,8 @@ const envSchema = z.object({
     .transform((val) => val === 'true')
     .default('false'),
 
-  // WhatsApp (waapi.app)
-  WAAPI_INSTANCE_ID: z.string().min(1, 'WAAPI_INSTANCE_ID is required'),
-  WAAPI_TOKEN: z.string().min(1, 'WAAPI_TOKEN is required'),
-  WHATSAPP_WEBHOOK_SECRET: z.string().min(1, 'WHATSAPP_WEBHOOK_SECRET is required'),
+  // WhatsApp (self-hosted gateway)
+  WHATSAPP_API_KEY: z.string().optional(),
 
   // Redis
   REDIS_URL: z.string().min(1, 'REDIS_URL is required').default('redis://localhost:6379'),

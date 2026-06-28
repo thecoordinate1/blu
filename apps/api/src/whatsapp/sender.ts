@@ -1,9 +1,10 @@
 import { env } from '../lib/env.js';
 import { saveMessage, logAgentAction } from '../supabase/queries.js';
 import type { Business } from '../lib/types.js';
+import { getSession } from './sessionManager.js';
 
 /**
- * Sends a WhatsApp message via the WhatsApp API provider (waapi.app / Meta WABA).
+ * Sends a WhatsApp message via the local self-hosted whatsapp-web.js gateway.
  * Logs the outbound message in the `messages` table and logs the notify/send action in `agent_actions`.
  */
 export async function sendWhatsAppMessage(
@@ -17,35 +18,24 @@ export async function sendWhatsAppMessage(
   try {
     let success = true;
 
-    // Call waapi.app API if credentials are configured
-    if (!env.GEMINI_MOCK && env.WAAPI_TOKEN && env.WAAPI_INSTANCE_ID) {
-      try {
-        const url = `https://waapi.app/api/v1/instances/${env.WAAPI_INSTANCE_ID}/client/action/send-message`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${env.WAAPI_TOKEN}`,
-          },
-          body: JSON.stringify({
-            chatId: `${to.replace('+', '')}@c.us`,
-            message: body,
-          }),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          console.error(`[whatsapp] waapi.app returned error code ${res.status}:`, errText);
-          success = false;
-        } else {
-          console.log('[whatsapp] Successfully sent message via waapi.app');
-        }
-      } catch (err) {
-        console.error('[whatsapp] waapi.app API fetch failed:', err);
+    // Call whatsapp-web.js client if not mocked
+    if (!env.GEMINI_MOCK) {
+      const client = getSession(businessId);
+      if (!client) {
+        console.error(`[whatsapp] No active session found for business ${businessId}`);
         success = false;
+      } else {
+        try {
+          const chatId = `${to.replace('+', '').trim()}@c.us`;
+          await client.sendMessage(chatId, body);
+          console.log('[whatsapp] Successfully sent message via whatsapp-web.js');
+        } catch (err) {
+          console.error('[whatsapp] whatsapp-web.js sendMessage failed:', err);
+          success = false;
+        }
       }
     } else {
-      console.log('[whatsapp] API call skipped (GEMINI_MOCK or missing waapi credentials)');
+      console.log('[whatsapp] API call skipped (GEMINI_MOCK)');
     }
 
     // Always store the outbound message in database if conversationId is provided

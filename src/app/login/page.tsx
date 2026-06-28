@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { Zap, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { RabbitLogo } from '@/components/rabbit-logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -72,8 +73,8 @@ export default function LoginPage() {
         
         {/* Header/Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-[#4F6EF7] rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(79,110,247,0.4)]">
-            <Zap className="text-white w-6 h-6 fill-white animate-pulse" />
+          <div className="w-12 h-12 bg-[#4F6EF7]/10 rounded-xl flex items-center justify-center text-[#4F6EF7] shadow-[0_0_20px_rgba(79,110,247,0.15)]">
+            <RabbitLogo size={32} className="animate-pulse" />
           </div>
           <h1 className="text-3xl font-headline font-bold text-white tracking-tight">
             Blu_bot

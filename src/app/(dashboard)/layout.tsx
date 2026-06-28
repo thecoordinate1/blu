@@ -30,6 +30,7 @@ import {
   SidebarTrigger
 } from '@/components/ui/sidebar';
 import { supabase } from '@/lib/supabase/client';
+import { RabbitLogo } from '@/components/rabbit-logo';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -100,8 +101,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Sidebar className="border-r border-[#1E2340] bg-[#0E1020]">
           <SidebarHeader className="p-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#4F6EF7] rounded-lg flex items-center justify-center">
-                <Zap className="text-white w-5 h-5 fill-white" />
+              <div className="w-8 h-8 bg-[#4F6EF7]/10 rounded-lg flex items-center justify-center text-[#4F6EF7]">
+                <RabbitLogo size={24} />
               </div>
               <div className="flex flex-col">
                 <span className="font-headline font-bold text-lg tracking-tight text-white leading-none">Blu_bot</span>

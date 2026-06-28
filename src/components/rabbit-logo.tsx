@@ -1,0 +1,62 @@
+import React from 'react';
+
+interface RabbitLogoProps {
+  className?: string;
+  size?: number;
+}
+
+export function RabbitLogo({ className, size = 32 }: RabbitLogoProps) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 32 32" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      {/* Rabbit Ears */}
+      <rect x="8" y="2" width="4" height="10" rx="2" fill="currentColor" />
+      <rect x="20" y="2" width="4" height="10" rx="2" fill="currentColor" />
+      
+      {/* Inner Ears */}
+      <rect x="9.5" y="4" width="1" height="6" rx="0.5" fill="#A78BFA" opacity="0.8" />
+      <rect x="21.5" y="4" width="1" height="6" rx="0.5" fill="#A78BFA" opacity="0.8" />
+      
+      {/* Head/Face */}
+      <rect x="4" y="10" width="24" height="18" rx="6" fill="currentColor" />
+      
+      {/* Face Screen (Dark glass screen) */}
+      <rect x="6" y="12" width="20" height="14" rx="4" fill="#0E1020" />
+      
+      {/* Eyes: Checkmarks (ticks) */}
+      <path 
+        d="M10 19L12 21L15 17" 
+        stroke="#22D3A0" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
+      <path 
+        d="M17 19L19 21L22 17" 
+        stroke="#22D3A0" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
+      
+      {/* Cheeks */}
+      <circle cx="8.5" cy="23.5" r="0.8" fill="#FF4D6D" opacity="0.7" />
+      <circle cx="23.5" cy="23.5" r="0.8" fill="#FF4D6D" opacity="0.7" />
+      
+      {/* Mouth */}
+      <path 
+        d="M14 23H18" 
+        stroke="currentColor" 
+        strokeWidth="1.5" 
+        strokeLinecap="round" 
+        opacity="0.3"
+      />
+    </svg>
+  );
+}
