@@ -1,134 +1,119 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Phone, Wifi, WifiOff, Plus } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
-import { WhatsAppQRConnect } from '@/components/whatsapp-qr-connect';
-
-interface ConnectedNumber {
-  id: string;
-  display_number: string;
-  display_name: string;
-  status: 'connected' | 'disconnected' | 'pending';
-}
+import { Phone, MessageSquare, Instagram, Send, Sparkles, Clock, Lock } from 'lucide-react';
+import { WhatsAppCloudConnect } from '@/components/whatsapp-cloud-connect';
 
 export default function NumbersSettingsPage() {
   const [mounted, setMounted] = useState(false);
-  const [numbers, setNumbers] = useState<ConnectedNumber[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
-
-    async function loadNumbers() {
-      const { data } = await supabase
-        .from('whatsapp_sessions')
-        .select('id, display_phone_number, verified_name, status')
-        .order('created_at', { ascending: false });
-
-      if (data && data.length > 0) {
-        setNumbers(
-          data.map((n: { id: string; display_phone_number?: string; verified_name?: string; status?: string }) => ({
-            id: n.id,
-            display_number: n.display_phone_number || 'Unknown',
-            display_name: n.verified_name || 'WhatsApp Number',
-            status: (n.status === 'connected' ? 'connected' : n.status === 'pending' ? 'pending' : 'disconnected') as ConnectedNumber['status'],
-          }))
-        );
-      }
-      setLoading(false);
-    }
-
-    loadNumbers();
   }, []);
 
   if (!mounted) return null;
 
   return (
-    <div className="space-y-8 max-w-3xl">
+    <div className="space-y-8 max-w-4xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-headline font-bold text-[#E2E8F0] tracking-tight">
-          Channels
+          Channels Integration
         </h1>
         <p className="mt-1 text-sm text-[#64748B]">
-          Manage your connected WhatsApp Business numbers and add new channels.
+          Connect your communication channels to manage customer conversations with AI.
         </p>
       </div>
 
-      {/* Connected Numbers */}
-      <div className="liquid-glass-panel p-6 space-y-5">
-        <div className="flex items-center justify-between">
+      {/* Primary Channel: WhatsApp Cloud API */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Phone className="w-4 h-4 text-[#22D3A0]" />
           <h2 className="text-xs font-headline font-bold text-[#64748B] uppercase tracking-widest">
-            Connected Numbers
+            Primary Channel — WhatsApp Cloud API
           </h2>
-          {numbers.length > 0 && (
-            <span className="text-[10px] font-mono text-[#22D3A0] bg-[#22D3A0]/10 px-2 py-0.5 rounded-full">
-              {numbers.length} active
-            </span>
-          )}
         </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="w-5 h-5 border-2 border-[#4F6EF7] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : numbers.length === 0 ? (
-          <div className="text-center py-8 space-y-2">
-            <Phone className="w-8 h-8 text-[#3A4060] mx-auto" />
-            <p className="text-sm text-[#64748B]">No numbers connected yet.</p>
-            <p className="text-xs text-[#3A4060]">
-              Use the setup below to connect your first WhatsApp Business number.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {numbers.map((num) => (
-              <div
-                key={num.id}
-                className="flex items-center justify-between bg-[#07080F] border border-[#1E2340] rounded-xl px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-[#22D3A0]/10 flex items-center justify-center">
-                    <Phone className="w-4 h-4 text-[#22D3A0]" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-mono text-[#E2E8F0]">{num.display_number}</p>
-                    <p className="text-[10px] text-[#64748B]">{num.display_name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {num.status === 'connected' ? (
-                    <>
-                      <Wifi className="w-3.5 h-3.5 text-[#22D3A0]" />
-                      <span className="text-[10px] font-mono text-[#22D3A0] uppercase tracking-wider">
-                        Connected
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3.5 h-3.5 text-[#FF4D6D]" />
-                      <span className="text-[10px] font-mono text-[#FF4D6D] uppercase tracking-wider">
-                        Disconnected
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <WhatsAppCloudConnect />
       </div>
 
-      {/* Connect New Number */}
-      <div className="liquid-glass-panel p-6 space-y-4">
-        <div className="flex items-center gap-2">
-          <Plus className="w-4 h-4 text-[#4F6EF7]" />
-          <h2 className="text-xs font-headline font-bold text-[#64748B] uppercase tracking-widest">
-            Connect a New Number
-          </h2>
+      {/* Upcoming Channels (Coming Soon) */}
+      <div className="space-y-4 pt-4 border-t border-[#1E2340]">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#A78BFA]" />
+            <h2 className="text-xs font-headline font-bold text-[#64748B] uppercase tracking-widest">
+              Additional Messaging Channels
+            </h2>
+          </div>
+          <span className="text-[10px] font-mono text-[#A78BFA] bg-[#A78BFA]/10 border border-[#A78BFA]/20 px-2.5 py-0.5 rounded-full font-semibold">
+            COMING SOON
+          </span>
         </div>
-        <WhatsAppQRConnect />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Instagram Direct */}
+          <div className="liquid-glass-panel p-5 space-y-3 opacity-70 hover:opacity-100 transition-opacity border-[#1E2340] relative">
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                <Instagram className="w-4 h-4" />
+              </div>
+              <span className="text-[9px] font-mono text-[#64748B] uppercase bg-[#07080F] px-2 py-0.5 rounded border border-[#1E2340]">
+                Q3 2026
+              </span>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Instagram Direct</h3>
+              <p className="text-[11px] text-[#64748B] mt-0.5">
+                Auto-reply to Instagram DMs and product inquiries directly.
+              </p>
+            </div>
+            <div className="pt-2 flex items-center gap-1 text-[10px] font-mono text-[#A78BFA]">
+              <Lock className="w-3 h-3" /> Coming Soon
+            </div>
+          </div>
+
+          {/* Telegram Bot */}
+          <div className="liquid-glass-panel p-5 space-y-3 opacity-70 hover:opacity-100 transition-opacity border-[#1E2340] relative">
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <Send className="w-4 h-4" />
+              </div>
+              <span className="text-[9px] font-mono text-[#64748B] uppercase bg-[#07080F] px-2 py-0.5 rounded border border-[#1E2340]">
+                Q3 2026
+              </span>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Telegram Bot</h3>
+              <p className="text-[11px] text-[#64748B] mt-0.5">
+                Connect Telegram bot token for instant customer support.
+              </p>
+            </div>
+            <div className="pt-2 flex items-center gap-1 text-[10px] font-mono text-[#A78BFA]">
+              <Lock className="w-3 h-3" /> Coming Soon
+            </div>
+          </div>
+
+          {/* SMS & Two-Way Messaging */}
+          <div className="liquid-glass-panel p-5 space-y-3 opacity-70 hover:opacity-100 transition-opacity border-[#1E2340] relative">
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <span className="text-[9px] font-mono text-[#64748B] uppercase bg-[#07080F] px-2 py-0.5 rounded border border-[#1E2340]">
+                Q4 2026
+              </span>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">SMS Gateway</h3>
+              <p className="text-[11px] text-[#64748B] mt-0.5">
+                Send transactional notifications & receipt SMS to buyers.
+              </p>
+            </div>
+            <div className="pt-2 flex items-center gap-1 text-[10px] font-mono text-[#A78BFA]">
+              <Lock className="w-3 h-3" /> Coming Soon
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

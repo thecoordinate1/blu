@@ -24,11 +24,11 @@ interface PlanInfo {
 export default function BillingSettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [plan, setPlan] = useState<PlanInfo>({
-    name: 'Growth',
-    messagesUsed: 1240,
-    messagesLimit: 3000,
-    price: 'R599',
-    renewalDate: '2026-07-01',
+    name: 'Free',
+    messagesUsed: 0,
+    messagesLimit: 1000,
+    price: 'K 0',
+    renewalDate: '2026-08-01',
   });
 
   useEffect(() => {

@@ -10,7 +10,9 @@ const MessageSchema = z.object({
 
 const AIAgentAutomaticResponseInputSchema = z.object({
   customerMessage: z.string().describe("The user's latest incoming WhatsApp message."),
-  conversationHistory: z.array(MessageSchema).optional().default([]).describe("Previous messages in this conversation session.")
+  conversationHistory: z.array(MessageSchema).optional().default([]).describe("Previous messages in this conversation session."),
+  businessName: z.string().optional().default("Blu Business").describe("Name of the business tenant."),
+  businessContext: z.string().optional().default("").describe("Business background, products, pricing, and persona context.")
 });
 
 export type AIAgentAutomaticResponseInput = z.infer<typeof AIAgentAutomaticResponseInputSchema>;
@@ -25,17 +27,28 @@ const aiAgentAutomaticResponsePrompt = ai.definePrompt({
   name: 'aiAgentAutomaticResponsePrompt',
   input: { schema: AIAgentAutomaticResponseInputSchema },
   output: { schema: AIAgentAutomaticResponseOutputSchema },
-  prompt: `You are an automated, friendly, and helpful AI customer support agent named Blu_bot.
-Your goal is to answer the customer's questions clearly, politely, and concisely.
+  prompt: `You are an automated, human-like, and friendly customer support representative for {{businessName}}.
+Your name is Blu_bot. You act as a knowledgeable team member of {{businessName}}.
 
-Here is the conversation history:
+{{#if businessContext}}
+BUSINESS KNOWLEDGE & PRODUCTS:
+{{{businessContext}}}
+{{/if}}
+
+RULES FOR YOUR RESPONSE:
+- Keep your reply concise, clear, and tailored for WhatsApp messages.
+- Be polite, helpful, and professional.
+- Use currency in Zambian Kwacha (ZMW) when providing pricing.
+- Do not make up facts outside the provided business knowledge.
+
+CONVERSATION HISTORY:
 {{#each conversationHistory}}
 - {{role}}: {{content}}
 {{/each}}
 
-Latest Customer Message: "{{{customerMessage}}}"
+LATEST CUSTOMER MESSAGE: "{{{customerMessage}}}"
 
-Provide your friendly response in the specified JSON format. Keep it concise enough for a WhatsApp message.
+Provide your friendly response in the specified JSON format.
 `
 });
 

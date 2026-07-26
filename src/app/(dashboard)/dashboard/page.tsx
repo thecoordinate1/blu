@@ -162,74 +162,139 @@ export default function DashboardPage() {
     loadDashboardData();
   }, []);
 
-  // Load inventory from localStorage
+  // Load inventory from Supabase (with localStorage fallback)
   useEffect(() => {
-    const saved = localStorage.getItem('blu_inventory');
-    if (saved) {
-      setInventory(JSON.parse(saved));
-    } else {
-      const defaultInventory = [
-        { id: '1', name: 'Solar Kit Pro', sku: 'SLR-PRO-01', price: 4500, stock: 18, category: 'Solar Kits' },
-        { id: '2', name: 'Smart Bulb 9W', sku: 'BLB-SMT-09', price: 120, stock: 145, category: 'Lighting' },
-        { id: '3', name: 'Solar Battery 100Ah', sku: 'BAT-100AH', price: 2800, stock: 4, category: 'Batteries' },
-        { id: '4', name: 'USB Charging Cable', sku: 'CAB-USB-3IN1', price: 45, stock: 0, category: 'Accessories' },
-      ];
-      setInventory(defaultInventory);
-      localStorage.setItem('blu_inventory', JSON.stringify(defaultInventory));
+    async function loadProducts() {
+      try {
+        const { data: biz } = await supabase
+          .from('businesses')
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+
+        if (biz) {
+          const { data: dbProducts, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('business_id', biz.id)
+            .order('created_at', { ascending: false });
+
+          if (!error && dbProducts && dbProducts.length > 0) {
+            setInventory(dbProducts);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load products from Supabase:', err);
+      }
+
+      // Fallback to localStorage
+      const saved = localStorage.getItem('blu_inventory');
+      if (saved) {
+        setInventory(JSON.parse(saved));
+      } else {
+        const defaultInventory = [
+          { id: '1', name: 'Solar Kit Pro', sku: 'SLR-PRO-01', price: 4500, stock: 18, category: 'Solar Kits' },
+          { id: '2', name: 'Smart Bulb 9W', sku: 'BLB-SMT-09', price: 120, stock: 145, category: 'Lighting' },
+          { id: '3', name: 'Solar Battery 100Ah', sku: 'BAT-100AH', price: 2800, stock: 4, category: 'Batteries' },
+          { id: '4', name: 'USB Charging Cable', sku: 'CAB-USB-3IN1', price: 45, stock: 0, category: 'Accessories' },
+        ];
+        setInventory(defaultInventory);
+        localStorage.setItem('blu_inventory', JSON.stringify(defaultInventory));
+      }
     }
+    loadProducts();
   }, []);
 
-  const saveInventory = (updated: any[]) => {
-    setInventory(updated);
-    localStorage.setItem('blu_inventory', JSON.stringify(updated));
+  const handleIncrementStock = async (id: string) => {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    const newStock = item.stock + 1;
+
+    setInventory(prev => prev.map(i => i.id === id ? { ...i, stock: newStock } : i));
+    try {
+      await supabase.from('products').update({ stock: newStock }).eq('id', id);
+    } catch {}
   };
 
-  const handleIncrementStock = (id: string) => {
-    const updated = inventory.map(item => item.id === id ? { ...item, stock: item.stock + 1 } : item);
-    saveInventory(updated);
+  const handleDecrementStock = async (id: string) => {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    const newStock = Math.max(0, item.stock - 1);
+
+    setInventory(prev => prev.map(i => i.id === id ? { ...i, stock: newStock } : i));
+    try {
+      await supabase.from('products').update({ stock: newStock }).eq('id', id);
+    } catch {}
   };
 
-  const handleDecrementStock = (id: string) => {
-    const updated = inventory.map(item => item.id === id ? { ...item, stock: Math.max(0, item.stock - 1) } : item);
-    saveInventory(updated);
+  const handleDeleteItem = async (id: string) => {
+    setInventory(prev => prev.filter(item => item.id !== id));
+    try {
+      await supabase.from('products').delete().eq('id', id);
+    } catch {}
   };
 
-  const handleDeleteItem = (id: string) => {
-    const updated = inventory.filter(item => item.id !== id);
-    saveInventory(updated);
-  };
-
-  const handleAddOrUpdateItem = (e: React.FormEvent) => {
+  const handleAddOrUpdateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formSku || !formPrice || !formStock) return;
 
+    const priceNum = parseFloat(formPrice);
+    const stockNum = parseInt(formStock);
+
+    const { data: biz } = await supabase
+      .from('businesses')
+      .select('id')
+      .limit(1)
+      .maybeSingle();
+
     if (editingItem) {
-      // Update
-      const updated = inventory.map(item => 
+      // Update local + DB
+      setInventory(prev => prev.map(item => 
         item.id === editingItem.id 
-          ? { 
-              ...item, 
-              name: formName, 
-              sku: formSku, 
-              price: parseFloat(formPrice), 
-              stock: parseInt(formStock), 
-              category: formCategory 
-            } 
+          ? { ...item, name: formName, sku: formSku, price: priceNum, stock: stockNum, category: formCategory } 
           : item
-      );
-      saveInventory(updated);
+      ));
+      if (biz) {
+        try {
+          await supabase
+            .from('products')
+            .update({ name: formName, sku: formSku, price: priceNum, stock: stockNum, category: formCategory })
+            .eq('id', editingItem.id);
+        } catch {}
+      }
       setEditingItem(null);
     } else {
-      // Create
+      // Create local + DB
       const newItem = {
         id: `inv-${Date.now()}`,
         name: formName,
         sku: formSku,
-        price: parseFloat(formPrice),
-        stock: parseInt(formStock),
+        price: priceNum,
+        stock: stockNum,
         category: formCategory
       };
-      saveInventory([...inventory, newItem]);
+      setInventory(prev => [newItem, ...prev]);
+      if (biz) {
+        try {
+          const { data: created } = await supabase
+            .from('products')
+            .insert({
+              business_id: biz.id,
+              name: formName,
+              sku: formSku,
+              price: priceNum,
+              stock: stockNum,
+              category: formCategory
+            })
+            .select('*')
+            .single();
+
+          if (created) {
+            setInventory(prev => prev.map(i => i.id === newItem.id ? created : i));
+          }
+        } catch {}
+      }
     }
 
     // Reset form & close
@@ -299,7 +364,7 @@ export default function DashboardPage() {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-headline font-bold text-white tracking-tight">
-            {getGreeting()} 👋
+            {getGreeting()}{businessName ? `, ${businessName}` : ''} 👋
           </h1>
           <p className="text-[#64748B] text-sm">{today} — here&apos;s how your business is doing.</p>
         </div>
@@ -310,6 +375,27 @@ export default function DashboardPage() {
           VIEW FULL ANALYTICS <ChevronRight className="w-3.5 h-3.5" />
         </Link>
       </header>
+
+      {/* Welcome Banner */}
+      <div className="p-5 border border-[#4F6EF7]/30 bg-gradient-to-r from-[#4F6EF7]/10 via-[#A78BFA]/10 to-[#22D3A0]/10 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-[#4F6EF7]/20 border border-[#4F6EF7]/30 flex items-center justify-center text-[#4F6EF7]">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-headline font-bold text-white">Welcome to your Blu_bot Workspace!</h3>
+            <p className="text-xs text-[#94A3B8] mt-0.5">
+              Your business profile and AI assistant are ready. Connect your WhatsApp Cloud API credentials in Settings anytime to go live.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/settings"
+          className="px-4 py-2 bg-[#4F6EF7] hover:bg-[#3D5FE6] text-white rounded-xl text-xs font-headline font-bold uppercase tracking-wider flex-shrink-0 transition-all shadow-[0_0_15px_-5px_#4F6EF7]"
+        >
+          Manage Settings
+        </Link>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -489,13 +575,13 @@ export default function DashboardPage() {
               className="w-full pl-10 pr-4 py-1.5 bg-transparent border-none focus:outline-none text-xs text-white placeholder:text-[#3A4060]" 
             />
           </div>
-          <div className="flex gap-1 h-8 bg-[#0E1020] p-1 rounded-lg border border-[#1E2340]">
-            {['All', 'Solar Kits', 'Lighting', 'Batteries', 'Accessories'].map((cat) => (
+          <div className="flex flex-wrap gap-1 bg-[#0E1020] p-1 rounded-lg border border-[#1E2340]">
+            {['All', ...Array.from(new Set(inventory.map(i => i.category || 'General')))].map((cat) => (
               <button 
                 key={cat}
                 onClick={() => setInvCategory(cat)}
                 className={cn(
-                  "px-3 text-[10px] font-headline font-bold rounded-md transition-all",
+                  "px-3 py-1 text-[10px] font-headline font-bold rounded-md transition-all",
                   invCategory === cat ? "bg-[#1A1F3A] text-white" : "text-[#64748B] hover:text-[#E2E8F0]"
                 )}
               >
@@ -535,7 +621,7 @@ export default function DashboardPage() {
                       <td className="p-4 font-bold text-white">{item.name}</td>
                       <td className="p-4 font-mono text-[#8893a7]">{item.sku}</td>
                       <td className="p-4 text-[#8893a7]">{item.category}</td>
-                      <td className="p-4 font-mono text-white text-right">ZMW {item.price.toLocaleString()}</td>
+                      <td className="p-4 font-mono text-white text-right">K {item.price.toLocaleString()}</td>
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-2">
                           <button 
@@ -633,22 +719,29 @@ export default function DashboardPage() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider">Category</label>
-                  <select 
+                  <input
+                    type="text"
+                    required
+                    list="category-suggestions"
+                    placeholder="e.g. Solar Kits, Electronics"
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
                     className="w-full bg-[#07080F]/50 border border-[#1E2340] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#4F6EF7]"
-                  >
-                    <option value="Solar Kits" className="bg-[#0E1020]">Solar Kits</option>
-                    <option value="Lighting" className="bg-[#0E1020]">Lighting</option>
-                    <option value="Batteries" className="bg-[#0E1020]">Batteries</option>
-                    <option value="Accessories" className="bg-[#0E1020]">Accessories</option>
-                  </select>
+                  />
+                  <datalist id="category-suggestions">
+                    <option value="Solar Kits" />
+                    <option value="Lighting" />
+                    <option value="Batteries" />
+                    <option value="Accessories" />
+                    <option value="Electronics" />
+                    <option value="Services" />
+                  </datalist>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider">Price (ZMW)</label>
+                  <label className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider">Price (K)</label>
                   <input 
                     type="number" 
                     required

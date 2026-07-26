@@ -38,7 +38,7 @@ export default function LoginPage() {
         }, 1000);
       } else {
         // Sign Up
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -50,11 +50,19 @@ export default function LoginPage() {
 
         if (error) throw error;
 
-        setMessage({
-          type: 'success',
-          text: 'Registration successful! Please check your email for confirmation or sign in.',
-        });
-        setIsLogin(true);
+        if (data.session) {
+          setMessage({ type: 'success', text: 'Account created! Launching setup wizard...' });
+          setTimeout(() => {
+            router.push('/onboarding');
+            router.refresh();
+          }, 1000);
+        } else {
+          setMessage({
+            type: 'success',
+            text: 'Registration successful! Please sign in to set up your workspace.',
+          });
+          setIsLogin(true);
+        }
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Authentication failed' });

@@ -6,13 +6,13 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
 
   // Google Gemini
-  GEMINI_API_KEY: z.string().min(1, 'GEMINI_API_KEY is required'),
+  GEMINI_API_KEY: z.string().default(''),
   GEMINI_MOCK: z
     .string()
     .transform((val) => val === 'true')
     .default('false'),
 
-  // WhatsApp (self-hosted gateway)
+  // WhatsApp
   WHATSAPP_API_KEY: z.string().optional(),
 
   // Redis

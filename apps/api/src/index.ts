@@ -5,7 +5,6 @@ import { serve } from '@hono/node-server';
 import { env } from './lib/env.js';
 import { whatsappWebhook } from './whatsapp/webhook.js';
 import { whatsappRoutes } from './whatsapp/routes.js';
-import { restoreSessions } from './whatsapp/sessionManager.js';
 
 const app = new Hono();
 
@@ -25,12 +24,13 @@ app.get('/health', (c) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     env: env.NODE_ENV,
+    provider: 'cloud_api',
   });
 });
 
 // Mount WhatsApp webhook
 app.route('/webhook/whatsapp', whatsappWebhook);
-// Mount new Hono WhatsApp routes for gateway
+// Mount WhatsApp routes for Cloud API gateway
 app.route('/whatsapp', whatsappRoutes);
 
 // Global error handler
@@ -54,8 +54,5 @@ serve({
   port: Number(port),
 });
 
-// Auto-restore active WhatsApp connections
-restoreSessions().catch((err) => {
-  console.error('[server] Failed to restore sessions during server boot:', err);
-});
+console.log(`[server] Cloud API server ready. No session restoration needed — credentials stored in Supabase.`);
 

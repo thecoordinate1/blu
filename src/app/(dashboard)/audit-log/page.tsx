@@ -165,9 +165,10 @@ export default function AuditLogPage() {
       ) : (
         <div className="liquid-glass-panel overflow-hidden">
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left min-w-[700px]">
+            <table className="w-full text-left min-w-[750px]">
               <thead>
                 <tr className="border-b border-[#1E2340] bg-[#131629]/50">
+                  <th className="p-4 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Date</th>
                   <th className="p-4 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Time</th>
                   <th className="p-4 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Action</th>
                   <th className="p-4 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Status</th>
@@ -176,88 +177,96 @@ export default function AuditLogPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1E2340]">
-                {filteredLog.map((entry) => (
-                  <React.Fragment key={entry.id}>
-                    <tr 
-                      onClick={() => setExpandedRow(expandedRow === entry.id ? null : entry.id)}
-                      className={cn(
-                        "hover:bg-[#1A1F3A] cursor-pointer transition-colors group",
-                        expandedRow === entry.id && "bg-[#1A1F3A]"
-                      )}
-                    >
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs text-white font-mono">{formatTime(entry.executed_at)}</span>
-                          <span className="text-[9px] text-[#3A4060] font-mono">
-                            {new Date(entry.executed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border",
-                          typeColors[entry.action_type] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                        )}>
-                          {typeLabels[entry.action_type] || entry.action_type}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          {entry.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />}
-                          {entry.status === 'failed' && <XCircle className="w-3.5 h-3.5 text-red-400" />}
-                          {entry.status === 'pending' && <Clock className="w-3.5 h-3.5 text-amber-400" />}
+                {filteredLog.map((entry) => {
+                  const d = new Date(entry.executed_at);
+                  const dateFormatted = isNaN(d.getTime()) 
+                    ? entry.executed_at.split('T')[0] 
+                    : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                  const timeFormatted = isNaN(d.getTime()) 
+                    ? entry.executed_at 
+                    : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                  return (
+                    <React.Fragment key={entry.id}>
+                      <tr 
+                        onClick={() => setExpandedRow(expandedRow === entry.id ? null : entry.id)}
+                        className={cn(
+                          "hover:bg-[#1A1F3A] cursor-pointer transition-colors group",
+                          expandedRow === entry.id && "bg-[#1A1F3A]"
+                        )}
+                      >
+                        <td className="p-4 font-mono text-xs text-white font-medium whitespace-nowrap">
+                          {dateFormatted}
+                        </td>
+                        <td className="p-4 font-mono text-xs text-[#22D3A0] whitespace-nowrap font-semibold">
+                          {timeFormatted}
+                        </td>
+                        <td className="p-4">
                           <span className={cn(
-                            "text-[10px] font-mono uppercase tracking-widest",
-                            entry.status === 'success' ? "text-green-400" : entry.status === 'failed' ? "text-red-400" : "text-amber-400"
+                            "px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border",
+                            typeColors[entry.action_type] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'
                           )}>
-                            {entry.status}
+                            {typeLabels[entry.action_type] || entry.action_type}
                           </span>
-                        </div>
-                      </td>
-                      <td className="p-4 text-xs text-white line-clamp-1">
-                        {entry.payload?.message || entry.payload?.reason || entry.payload?.reply?.substring(0, 80) || 'Action recorded'}
-                      </td>
-                      <td className="p-4">
-                        <ChevronRight className={cn(
-                          "w-4 h-4 text-[#3A4060] transition-transform",
-                          expandedRow === entry.id && "rotate-90 text-white"
-                        )} />
-                      </td>
-                    </tr>
-                    {expandedRow === entry.id && (
-                      <tr className="bg-[#07080F]/50">
-                        <td colSpan={5} className="p-6">
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-[10px] font-mono font-bold text-accent uppercase tracking-widest">Event Details</h4>
-                              {entry.status === 'failed' && (
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[10px] font-mono uppercase">
-                                  <AlertTriangle className="w-3 h-3" /> Action failed
-                                </div>
-                              )}
-                            </div>
-                            <div className="p-4 bg-[#0E1020] border border-[#1E2340] rounded-lg space-y-2">
-                              <div className="flex text-xs font-mono">
-                                <span className="text-[#64748B] w-48 font-semibold">Conversation ID:</span>
-                                <span className="text-white flex-1 truncate">{entry.conversation_id}</span>
-                              </div>
-                              <div className="flex text-xs font-mono">
-                                <span className="text-[#64748B] w-48 font-semibold">Executed At:</span>
-                                <span className="text-white flex-1">{new Date(entry.executed_at).toLocaleString()}</span>
-                              </div>
-                              {Object.entries(entry.payload || {}).map(([key, val]: any) => (
-                                <div key={key} className="flex text-xs font-mono">
-                                  <span className="text-[#64748B] w-48 font-semibold capitalize">{key.replace(/_/g, ' ')}:</span>
-                                  <span className="text-white flex-1 break-all">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</span>
-                                </div>
-                              ))}
-                            </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            {entry.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />}
+                            {entry.status === 'failed' && <XCircle className="w-3.5 h-3.5 text-red-400" />}
+                            {entry.status === 'pending' && <Clock className="w-3.5 h-3.5 text-amber-400" />}
+                            <span className={cn(
+                              "text-[10px] font-mono uppercase tracking-widest",
+                              entry.status === 'success' ? "text-green-400" : entry.status === 'failed' ? "text-red-400" : "text-amber-400"
+                            )}>
+                              {entry.status}
+                            </span>
                           </div>
                         </td>
+                        <td className="p-4 text-xs text-[#E2E8F0] line-clamp-1">
+                          {entry.payload?.message || entry.payload?.reason || entry.payload?.reply?.substring(0, 80) || 'Action recorded'}
+                        </td>
+                        <td className="p-4">
+                          <ChevronRight className={cn(
+                            "w-4 h-4 text-[#3A4060] transition-transform",
+                            expandedRow === entry.id && "rotate-90 text-white"
+                          )} />
+                        </td>
                       </tr>
-                    )}
-                  </React.Fragment>
-                ))}
+                      {expandedRow === entry.id && (
+                        <tr className="bg-[#07080F]/50">
+                          <td colSpan={6} className="p-6">
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-[10px] font-mono font-bold text-[#4F6EF7] uppercase tracking-widest">Event Details</h4>
+                                {entry.status === 'failed' && (
+                                  <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[10px] font-mono uppercase">
+                                    <AlertTriangle className="w-3 h-3" /> Action failed
+                                  </div>
+                                )}
+                              </div>
+                              <div className="p-4 bg-[#0E1020] border border-[#1E2340] rounded-lg space-y-2">
+                                <div className="flex text-xs font-mono">
+                                  <span className="text-[#64748B] w-48 font-semibold">Conversation ID:</span>
+                                  <span className="text-white flex-1 truncate">{entry.conversation_id}</span>
+                                </div>
+                                <div className="flex text-xs font-mono">
+                                  <span className="text-[#64748B] w-48 font-semibold">Executed At:</span>
+                                  <span className="text-white flex-1">{new Date(entry.executed_at).toLocaleString()}</span>
+                                </div>
+                                {Object.entries(entry.payload || {}).map(([key, val]: any) => (
+                                  <div key={key} className="flex text-xs font-mono">
+                                    <span className="text-[#64748B] w-48 font-semibold capitalize">{key.replace(/_/g, ' ')}:</span>
+                                    <span className="text-white flex-1 break-all">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

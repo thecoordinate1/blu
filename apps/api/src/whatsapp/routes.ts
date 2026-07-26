@@ -1,103 +1,28 @@
 import { Hono } from 'hono';
-import { createSession, getSession, deleteSession, isSessionInitializing } from './sessionManager.js';
-import { sendWhatsAppMessage } from './sender.js';
-import { createOutgoingMedia } from './mediaHandler.js';
+import { configureSession, verifySession, getSessionConfig, deleteSession, getConnectionEvents, clearConnectionEvents } from './sessionManager.js';
+import { sendWhatsAppMessage, sendWhatsAppMedia } from './sender.js';
 import { supabase } from '../supabase/client.js';
-import { saveMessage, logAgentAction } from '../supabase/queries.js';
 
 export const whatsappRoutes = new Hono();
 
-// ─── Per-businessId rate limiter ─────────────────────────────────────────────
-// Allows at most MAX_REQUESTS attempts within WINDOW_MS per business.
-const RATE_WINDOW_MS = 60_000; // 1 minute
-const MAX_REQUESTS   = 3;      // max 3 session-start attempts per minute
-
-const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
-
-function checkRateLimit(businessId: string): { allowed: boolean; retryAfterSec: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(businessId);
-
-  if (!entry || now - entry.windowStart > RATE_WINDOW_MS) {
-    // Start a fresh window
-    rateLimitMap.set(businessId, { count: 1, windowStart: now });
-    return { allowed: true, retryAfterSec: 0 };
-  }
-
-  if (entry.count >= MAX_REQUESTS) {
-    const retryAfterSec = Math.ceil((RATE_WINDOW_MS - (now - entry.windowStart)) / 1000);
-    return { allowed: false, retryAfterSec };
-  }
-
-  entry.count++;
-  return { allowed: true, retryAfterSec: 0 };
-}
-
-// Helper to format clean JID
-function formatJid(phone: string): string {
-  const clean = phone.replace('+', '').trim();
-  return clean.includes('@') ? clean : `${clean}@c.us`;
-}
-
-// 1. Initialize session for tenant
+// 1. Configure Cloud API session for tenant
 whatsappRoutes.post('/sessions', async (c) => {
   try {
-    const { businessId } = await c.req.json();
-    if (!businessId) {
-      return c.json({ success: false, error: 'businessId is required' }, 400);
+    const { businessId, phoneNumberId, accessToken, wabaId } = await c.req.json();
+    if (!businessId || !phoneNumberId || !accessToken) {
+      return c.json({ success: false, error: 'businessId, phoneNumberId, and accessToken are required' }, 400);
     }
 
-    // ── Rate limit check ───────────────────────────────────────────────────
-    const { allowed, retryAfterSec } = checkRateLimit(businessId);
-    if (!allowed) {
-      return c.json(
-        { success: false, error: `Too many requests. Please wait ${retryAfterSec}s before trying again.` },
-        429
-      );
-    }
+    await configureSession(businessId, phoneNumberId, accessToken, wabaId);
 
-    // ── In-memory lock check (Chrome already launching) ────────────────────
-    if (isSessionInitializing(businessId)) {
-      return c.json(
-        { success: false, error: 'Session is already being initialized. Please wait for the QR code.' },
-        409
-      );
-    }
-
-    // ── DB state check (already connected or qr pending) ──────────────────
-    const { data: existing } = await supabase
-      .from('whatsapp_sessions')
-      .select('status')
-      .eq('business_id', businessId)
-      .maybeSingle();
-
-    if (existing?.status === 'connected') {
-      return c.json(
-        { success: false, error: 'WhatsApp is already connected for this business.' },
-        409
-      );
-    }
-
-    if (existing?.status === 'qr_pending') {
-      return c.json(
-        { success: false, error: 'A QR code is already pending. Please scan it before requesting a new one.' },
-        409
-      );
-    }
-
-    // ── All clear — launch session asynchronously ──────────────────────────
-    createSession(businessId).catch((err) => {
-      console.error(`[Routes] Async createSession failed for ${businessId}:`, err.message);
-    });
-
-    return c.json({ success: true, message: 'Session initialization started' });
+    return c.json({ success: true, message: 'Cloud API session configured successfully' });
 
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
 });
 
-// 2. Get session status and QR code
+// 2. Get session status
 whatsappRoutes.get('/sessions/:businessId/status', async (c) => {
   try {
     const businessId = c.req.param('businessId');
@@ -105,37 +30,44 @@ whatsappRoutes.get('/sessions/:businessId/status', async (c) => {
       return c.json({ success: false, error: 'businessId is required' }, 400);
     }
 
-    const { data: session, error } = await supabase
-      .from('whatsapp_sessions')
-      .select('*')
-      .eq('business_id', businessId)
-      .maybeSingle();
+    const config = await getSessionConfig(businessId);
 
-    if (error) {
-      return c.json({ success: false, error: error.message }, 500);
-    }
-
-    if (!session) {
+    if (!config) {
       return c.json({
         success: true,
         status: 'disconnected',
-        qrCode: null,
-        phoneNumber: null
+        provider: 'cloud_api'
       });
     }
 
     return c.json({
       success: true,
-      status: session.status || 'disconnected',
-      qrCode: session.qr_code,
-      phoneNumber: session.phone_number
+      status: config.status || 'disconnected',
+      provider: config.provider || 'cloud_api',
+      phoneNumberId: config.wa_phone_number_id,
+      wabaId: config.wa_business_account_id
     });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
 });
 
-// 3. Logout/Delete session
+// 3. Verify session
+whatsappRoutes.post('/sessions/:businessId/verify', async (c) => {
+  try {
+    const businessId = c.req.param('businessId');
+    if (!businessId) {
+      return c.json({ success: false, error: 'businessId is required' }, 400);
+    }
+
+    const isValid = await verifySession(businessId);
+    return c.json({ success: isValid, message: isValid ? 'Credentials are valid' : 'Invalid credentials' });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+// 4. Logout/Delete session
 whatsappRoutes.delete('/sessions/:businessId', async (c) => {
   try {
     const businessId = c.req.param('businessId');
@@ -145,19 +77,19 @@ whatsappRoutes.delete('/sessions/:businessId', async (c) => {
 
     const success = await deleteSession(businessId);
     if (!success) {
-      return c.json({ success: false, error: 'Failed to terminate session or session not active' }, 400);
+      return c.json({ success: false, error: 'Failed to terminate session' }, 400);
     }
 
     return c.json({
       success: true,
-      message: 'Session logged out and terminated successfully'
+      message: 'Session cleared successfully'
     });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
 });
 
-// 4. Send text message
+// 5. Send text message
 whatsappRoutes.post('/send/message', async (c) => {
   try {
     const { businessId, to, body, conversationId } = await c.req.json();
@@ -167,7 +99,7 @@ whatsappRoutes.post('/send/message', async (c) => {
 
     const success = await sendWhatsAppMessage(to, body, businessId, conversationId);
     if (!success) {
-      return c.json({ success: false, error: 'Failed to send message. Is session connected?' }, 500);
+      return c.json({ success: false, error: 'Failed to send message' }, 500);
     }
 
     return c.json({ success: true, message: 'Message sent successfully' });
@@ -176,62 +108,30 @@ whatsappRoutes.post('/send/message', async (c) => {
   }
 });
 
-// 5. Send media (image, video, document, audio)
+// 6. Send media (image, video, document, audio)
 whatsappRoutes.post('/send/media', async (c) => {
   try {
-    const { businessId, to, mediaUrl, mediaBase64, mimetype, filename, caption, conversationId } = await c.req.json();
-    if (!businessId || !to || (!mediaUrl && (!mediaBase64 || !mimetype))) {
-      return c.json({ success: false, error: 'businessId, to, and either mediaUrl or base64+mimetype are required' }, 400);
+    const { businessId, to, mediaUrl, caption, conversationId } = await c.req.json();
+    if (!businessId || !to || !mediaUrl) {
+      return c.json({ success: false, error: 'businessId, to, and mediaUrl are required' }, 400);
     }
 
-    const client = getSession(businessId);
-    if (!client) {
-      return c.json({ success: false, error: 'WhatsApp session not active for this business' }, 400);
-    }
-
-    // Convert source to MessageMedia object
-    const media = await createOutgoingMedia({
-      url: mediaUrl,
-      base64: mediaBase64,
-      mimetype,
-      filename
-    });
-
-    const formattedTo = formatJid(to);
-    const sentMessage = await client.sendMessage(formattedTo, media, { caption });
-
-    // Store the outbound message in database if conversationId is provided
-    if (conversationId) {
-      await saveMessage({
-        conversation_id: conversationId,
-        business_id: businessId,
-        direction: 'outbound',
-        role: 'assistant',
-        body: caption || `[Media: ${media.mimetype}]`,
-        media_url: mediaUrl || null,
-        wa_message_id: sentMessage.id.id
-      });
-
-      await logAgentAction({
-        conversation_id: conversationId,
-        business_id: businessId,
-        action_type: 'send_media',
-        payload: { to, media_url: mediaUrl, has_caption: !!caption },
-        status: 'success'
-      });
+    const success = await sendWhatsAppMedia(to, mediaUrl, caption, businessId, conversationId);
+    
+    if (!success) {
+      return c.json({ success: false, error: 'Failed to send media' }, 500);
     }
 
     return c.json({
       success: true,
-      message: 'Media message sent successfully',
-      messageId: sentMessage.id.id
+      message: 'Media message sent successfully'
     });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
 });
 
-// 6. Register a webhook URL
+// 7. Register a webhook URL
 whatsappRoutes.post('/webhooks', async (c) => {
   try {
     const { businessId, url, secret, events } = await c.req.json();
@@ -266,7 +166,7 @@ whatsappRoutes.post('/webhooks', async (c) => {
   }
 });
 
-// 7. Get registered webhooks for a business
+// 8. Get registered webhooks for a business
 whatsappRoutes.get('/webhooks/:businessId', async (c) => {
   try {
     const businessId = c.req.param('businessId');
@@ -289,7 +189,7 @@ whatsappRoutes.get('/webhooks/:businessId', async (c) => {
   }
 });
 
-// 8. Delete a registered webhook
+// 9. Delete a registered webhook
 whatsappRoutes.delete('/webhooks/:webhookId', async (c) => {
   try {
     const webhookId = c.req.param('webhookId');
@@ -310,4 +210,33 @@ whatsappRoutes.delete('/webhooks/:webhookId', async (c) => {
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
   }
+});
+
+// ─── Debug / Diagnostics ───────────────────────────────────────────────────
+
+// 10. Get connection events timeline for a business (debugging)
+whatsappRoutes.get('/sessions/:businessId/events', async (c) => {
+  const businessId = c.req.param('businessId');
+  if (!businessId) {
+    return c.json({ success: false, error: 'businessId is required' }, 400);
+  }
+
+  const events = getConnectionEvents(businessId);
+  return c.json({
+    success: true,
+    businessId,
+    totalEvents: events.length,
+    events,
+  });
+});
+
+// 11. Clear connection events for a business
+whatsappRoutes.delete('/sessions/:businessId/events', async (c) => {
+  const businessId = c.req.param('businessId');
+  if (!businessId) {
+    return c.json({ success: false, error: 'businessId is required' }, 400);
+  }
+
+  clearConnectionEvents(businessId);
+  return c.json({ success: true, message: 'Connection events cleared' });
 });
