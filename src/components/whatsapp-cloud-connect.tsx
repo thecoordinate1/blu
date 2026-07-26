@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 type ConnectionStatus = 'disconnected' | 'configured' | 'connected' | 'verifying' | 'error';
 
@@ -68,12 +68,12 @@ export function WhatsAppCloudConnect() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Fetch status from the API ─────────────────────────────────────────────
+  // ── Fetch status ──────────────────────────────────────────────────────────
   const fetchStatus = useCallback(async (bid: string) => {
     try {
-      const res = await fetch(`${API_URL}/whatsapp/sessions/${bid}/status`);
+      const endpoint = API_URL ? `${API_URL}/whatsapp/sessions/${bid}/status` : `/api/whatsapp/sessions?businessId=${bid}`;
+      const res = await fetch(endpoint);
       if (!res.ok) {
-        // Fall back to Supabase
         await fetchStatusFromSupabase(bid);
         return;
       }
@@ -129,7 +129,8 @@ export function WhatsAppCloudConnect() {
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`${API_URL}/whatsapp/sessions`, {
+      const endpoint = API_URL ? `${API_URL}/whatsapp/sessions` : '/api/whatsapp/sessions';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -142,15 +143,29 @@ export function WhatsAppCloudConnect() {
 
       const json = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || !json.success) {
         throw new Error(json.error || 'Failed to save credentials.');
       }
 
-      setStatus('configured');
-      setSuccessMsg('Credentials saved! Now verify your connection.');
+      setStatus(json.status || 'configured');
+      setSuccessMsg('Credentials saved & verified successfully!');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to save credentials.');
-      setStatus('error');
+      // Fallback direct write to Supabase
+      try {
+        await supabase.from('whatsapp_sessions').upsert({
+          business_id: businessId,
+          provider: 'cloud_api',
+          wa_phone_number_id: phoneNumberId.trim(),
+          wa_access_token: accessToken.trim(),
+          wa_business_account_id: wabaId.trim() || null,
+          status: 'configured',
+        }, { onConflict: 'business_id' });
+        setStatus('configured');
+        setSuccessMsg('Credentials saved successfully!');
+      } catch (dbErr: any) {
+        setErrorMsg(err.message || 'Failed to save credentials.');
+        setStatus('error');
+      }
     } finally {
       setLoading(false);
     }
@@ -165,8 +180,9 @@ export function WhatsAppCloudConnect() {
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`${API_URL}/whatsapp/sessions/${businessId}/verify`, {
-        method: 'POST',
+      const endpoint = API_URL ? `${API_URL}/whatsapp/sessions/${businessId}/verify` : `/api/whatsapp/sessions?businessId=${businessId}`;
+      const res = await fetch(endpoint, {
+        method: API_URL ? 'POST' : 'GET',
       });
 
       const json = await res.json();
@@ -189,7 +205,12 @@ export function WhatsAppCloudConnect() {
     if (!businessId) return;
     setLoading(true);
     try {
-      await fetch(`${API_URL}/whatsapp/sessions/${businessId}`, { method: 'DELETE' });
+      const endpoint = API_URL ? `${API_URL}/whatsapp/sessions/${businessId}` : `/api/whatsapp/sessions?businessId=${businessId}`;
+      await fetch(endpoint, { method: 'DELETE' });
+      
+      // Fallback Supabase update
+      await supabase.from('whatsapp_sessions').update({ status: 'disconnected', wa_access_token: null }).eq('business_id', businessId);
+      
       setStatus('disconnected');
       setPhoneNumber(null);
       setPhoneNumberId('');

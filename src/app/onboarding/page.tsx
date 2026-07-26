@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { RabbitLogo } from '@/components/rabbit-logo';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 const INDUSTRIES = [
   'Retail & E-commerce',
@@ -169,7 +169,8 @@ export default function OnboardingPage() {
       // 3. Save WhatsApp Cloud API Credentials if provided
       if (!skipWhatsApp && phoneNumberId.trim() && accessToken.trim()) {
         try {
-          await fetch(`${API_URL}/whatsapp/sessions`, {
+          const endpoint = API_URL ? `${API_URL}/whatsapp/sessions` : '/api/whatsapp/sessions';
+          await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
