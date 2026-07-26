@@ -402,44 +402,6 @@ export function WhatsAppCloudConnect() {
           )}
         </CardContent>
       </Card>
-
-      {/* ── Webhook URL Card ── */}
-      <Card className="bg-[#07080F] border-[#1E2340]">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-white text-sm flex items-center gap-2">
-            <WifiOff className="w-4 h-4 text-[#64748B]" />
-            Webhook Configuration
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label className="text-xs text-[#64748B]">Webhook URL (paste in Meta Developer Console)</Label>
-            <div className="flex items-center gap-2 mt-1.5">
-              <code className="flex-1 text-xs bg-[#0D0F1A] border border-[#1E2340] rounded-md px-3 py-2 text-[#94A3B8] truncate">
-                {webhookUrl}
-              </code>
-              <Button variant="ghost" size="sm" onClick={handleCopy} className="text-[#64748B] hover:text-white">
-                {copied ? <Check className="w-4 h-4 text-[#22D3A0]" /> : <Copy className="w-4 h-4" />}
-              </Button>
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs text-[#64748B]">Verify Token</Label>
-            <code className="block text-xs bg-[#0D0F1A] border border-[#1E2340] rounded-md px-3 py-2 text-[#94A3B8] mt-1.5">
-              blu-agent-secret
-            </code>
-          </div>
-          <a
-            href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-[#4F6EF7] hover:text-[#3D5FE6] flex items-center gap-1 mt-2"
-          >
-            <ExternalLink className="w-3 h-3" />
-            Meta Cloud API Setup Guide
-          </a>
-        </CardContent>
-      </Card>
     </div>
   );
 }
