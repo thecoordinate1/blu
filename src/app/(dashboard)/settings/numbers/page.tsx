@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Phone, MessageSquare, Instagram, Send, Sparkles, Clock, Lock } from 'lucide-react';
+import { Phone, MessageSquare, Send, Sparkles, Clock, Lock, Camera } from 'lucide-react';
 import { WhatsAppCloudConnect } from '@/components/whatsapp-cloud-connect';
 
 export default function NumbersSettingsPage() {
@@ -55,7 +55,7 @@ export default function NumbersSettingsPage() {
           <div className="liquid-glass-panel p-5 space-y-3 opacity-70 hover:opacity-100 transition-opacity border-[#1E2340] relative">
             <div className="flex items-center justify-between">
               <div className="w-9 h-9 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
-                <Instagram className="w-4 h-4" />
+                <Camera className="w-4 h-4" />
               </div>
               <span className="text-[9px] font-mono text-[#64748B] uppercase bg-[#07080F] px-2 py-0.5 rounded border border-[#1E2340]">
                 Q3 2026
