@@ -177,19 +177,26 @@ export default function LoginPage() {
         </form>
 
         {/* Toggle Mode */}
-        <div className="mt-8 pt-6 border-t border-[#1E2340]/60 text-center text-xs">
-          <span className="text-[#64748B]">
-            {isLogin ? "Don't have an account?" : 'Already have an account?'}
-          </span>{' '}
-          <button
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setMessage(null);
-            }}
-            className="text-[#4F6EF7] hover:underline font-bold"
-          >
-            {isLogin ? 'Sign up' : 'Sign in'}
-          </button>
+        <div className="mt-8 pt-6 border-t border-[#1E2340]/60 text-center text-xs space-y-3">
+          <div>
+            <span className="text-[#64748B]">
+              {isLogin ? "Don't have an account?" : 'Already have an account?'}
+            </span>{' '}
+            <button
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setMessage(null);
+              }}
+              className="text-[#4F6EF7] hover:underline font-bold"
+            >
+              {isLogin ? 'Sign up' : 'Sign in'}
+            </button>
+          </div>
+          <div>
+            <a href="/privacy" className="text-[11px] text-[#64748B] hover:text-[#94A3B8] transition-colors">
+              Privacy Policy & Terms
+            </a>
+          </div>
         </div>
       </div>
     </div>
