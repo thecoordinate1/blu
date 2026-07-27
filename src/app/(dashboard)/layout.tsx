@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/sidebar';
 import { supabase } from '@/lib/supabase/client';
 import { RabbitLogo } from '@/components/rabbit-logo';
+import { NotificationBell } from '@/components/notification-bell';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -195,16 +196,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </Sidebar>
         
         <main className="flex-1 overflow-y-auto relative w-full">
-          {/* Mobile Top Header */}
-          <div className="flex items-center justify-between p-4 border-b border-[#1E2340] bg-[#0E1020] lg:hidden">
+          {/* Top Header Bar with Notification Bell */}
+          <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-3.5 border-b border-[#1E2340] bg-[#07080F]/90 backdrop-blur-md">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="text-white hover:bg-[#1A1F3A]" />
-              <span className="font-headline font-bold text-sm tracking-tight text-white">Blu_bot</span>
+              <div className="flex items-center gap-2">
+                <span className="font-headline font-bold text-sm tracking-tight text-white">Blu_bot</span>
+                <span className="text-[#3A4060] hidden sm:inline">•</span>
+                <span className="text-xs text-[#94A3B8] font-mono hidden sm:inline uppercase">
+                  {pathname === '/dashboard' ? 'Overview' : pathname.replace('/settings/', '').replace('/', '')}
+                </span>
+              </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-[#4F6EF7]/20 flex items-center justify-center text-[#4F6EF7] font-bold text-xs">
-              AC
+
+            {/* Notification Bell Button */}
+            <div className="flex items-center gap-3">
+              <NotificationBell />
             </div>
-          </div>
+          </header>
           
           <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-24 w-full">
             {children}
